@@ -66,7 +66,7 @@ leads.post("/", zValidator("json", leadCreateSchema), async (c) => {
         formType: body.formType,
         message: body.message,
       },
-      { portalUrl, logoUrl: brandLogoUrl(c.env.APP_URL) },
+      { portalUrl, logoUrl: brandLogoUrl(c.env.ASSET_URL) },
     );
     await sendLoggedEmail(c.env, {
       to: c.env.NOTIFY_EMAIL_TO,
@@ -91,7 +91,7 @@ leads.post("/", zValidator("json", leadCreateSchema), async (c) => {
         formType: body.formType,
         message: body.message,
       },
-      { logoUrl: brandLogoUrl(c.env.APP_URL), siteUrl: c.env.APP_URL },
+      { logoUrl: brandLogoUrl(c.env.ASSET_URL), siteUrl: c.env.APP_URL },
     );
     await sendLoggedEmail(c.env, {
       to: body.email,

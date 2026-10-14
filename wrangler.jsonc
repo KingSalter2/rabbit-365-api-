@@ -10,6 +10,7 @@
   "vars": {
     "ENVIRONMENT": "production",
     "APP_URL": "https://www.rabbit365.co.za",
+    "ASSET_URL": "https://www.rabbit365.co.za",
     "NOTIFY_EMAIL_TO": "info@rabbit365.co.za",
     "EMAIL_FROM": "Rabbit 365 <no-reply@emails.rabbit365.co.za>",
     "SUPERADMIN_EMAIL": "info@rabbit365.co.za"

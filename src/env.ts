@@ -7,6 +7,7 @@ export interface Bindings {
   TURNSTILE_SECRET_KEY?: string;
   RESEND_API_KEY?: string;
   APP_URL?: string;
+  ASSET_URL?: string;
   NOTIFY_EMAIL_TO?: string;
   EMAIL_FROM?: string;
   SUPERADMIN_EMAIL?: string;

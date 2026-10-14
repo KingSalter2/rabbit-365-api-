@@ -15,6 +15,9 @@ RESEND_API_KEY=
 # --- Non-secret config (mirrors wrangler.jsonc vars) ---
 ENVIRONMENT=development
 APP_URL=http://localhost:8080
+# Public URL used for assets embedded in sent emails (logo). Leave as the
+# production URL so recipients can load them; defaults to the site if blank.
+ASSET_URL=https://www.rabbit365.co.za
 NOTIFY_EMAIL_TO=info@rabbit365.co.za
 EMAIL_FROM=Rabbit 365 <no-reply@emails.rabbit365.co.za>
 SUPERADMIN_EMAIL=info@rabbit365.co.za

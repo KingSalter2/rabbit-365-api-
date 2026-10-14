@@ -40,7 +40,9 @@ const FONT_STACK =
 
 /**
  * Absolute URL for the brand logo, served by this API (`/api/assets/logo.png`)
- * so emails never depend on the marketing site being reachable. Pass APP_URL.
+ * so emails never depend on the marketing site being reachable. Pass ASSET_URL
+ * (the public URL); when blank it defaults to the production site, so emails
+ * sent from local dev still load a reachable logo for the recipient.
  */
 export function brandLogoUrl(baseUrl?: string): string {
   const base = (baseUrl || BRAND.site).replace(/\/$/, "");

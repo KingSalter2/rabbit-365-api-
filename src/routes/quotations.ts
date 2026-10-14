@@ -286,7 +286,7 @@ quotations.post("/:id/accept", zValidator("json", quotationAcceptSchema), async 
     })}`;
     const acceptedAt = new Date().toLocaleString("en-ZA");
     const portalUrl = `${(c.env.APP_URL ?? "").replace(/\/$/, "")}/ops`;
-    const logoUrl = brandLogoUrl(c.env.APP_URL);
+    const logoUrl = brandLogoUrl(c.env.ASSET_URL);
 
     // Notify the Rabbit 365 team that the client has accepted.
     if (c.env.NOTIFY_EMAIL_TO) {
