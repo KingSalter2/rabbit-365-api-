@@ -8,6 +8,8 @@
  * Preview them locally at: /dev/emails  (dev only, see routes/dev.ts)
  */
 
+import { isBankingEmpty, type BankingDetails } from "./settings";
+
 export type EmailContent = { subject: string; html: string };
 
 /* ------------------------------------------------------------------ */
@@ -113,6 +115,31 @@ function banner(text: string): string {
       </td>
     </tr>
   </table>`;
+}
+
+function sectionHeading(text: string): string {
+  return `<h2 style="margin:24px 0 12px;font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:${COLOR.muted}">${esc(text)}</h2>`;
+}
+
+function bankingBlock(banking: BankingDetails, reference?: string): string {
+  const rows: DetailRow[] = [
+    { label: "Bank", value: banking.bankName },
+    { label: "Account name", value: banking.accountName },
+    { label: "Account number", value: banking.accountNumber },
+    { label: "Account type", value: banking.accountType },
+    { label: "Branch code", value: banking.branchCode },
+    { label: "Payment reference", value: reference },
+  ];
+  return detailTable(rows);
+}
+
+function paymentSection(banking: BankingDetails | null | undefined, reference?: string): string {
+  if (isBankingEmpty(banking)) return "";
+  return (
+    sectionHeading("Payment details") +
+    bankingBlock(banking as BankingDetails, reference) +
+    `<p style="margin:0 0 20px;font-size:13px;line-height:21px;color:${COLOR.muted}">Please use the payment reference above so we can match your payment to this quotation.</p>`
+  );
 }
 
 function button(label: string, url: string): string {
@@ -347,6 +374,8 @@ export type QuotationClientConfirmData = {
   total: string;
   acceptedAt: string;
   quotationUrl?: string;
+  banking?: BankingDetails | null;
+  reference?: string;
   logoUrl?: string;
 };
 
@@ -366,7 +395,7 @@ export function quotationAcceptanceClientEmail(data: QuotationClientConfirmData)
       heading: `Thank you, ${data.clientName}!`,
       intro:
         "We've received your acceptance of the quotation below. Our team will be in touch shortly to get started.",
-      content: banner("Quotation accepted") + detailTable(rows),
+      content: banner("Quotation accepted") + detailTable(rows) + paymentSection(data.banking, data.reference),
       cta: data.quotationUrl ? { label: "View your quotation", url: data.quotationUrl } : undefined,
       footerNote:
         "If you did not accept this quotation, please reply to this email and let us know.",
@@ -429,6 +458,8 @@ export type QuotationProgressEmailData = {
   steps: ProgressStepView[];
   note?: string | null;
   quotationUrl?: string;
+  banking?: BankingDetails | null;
+  reference?: string;
   logoUrl?: string;
 };
 
@@ -443,7 +474,8 @@ export function quotationProgressEmail(data: QuotationProgressEmailData): EmailC
       content:
         banner(`Status: ${data.statusLabel}`) +
         progressList(data.steps) +
-        (data.note ? callout("Note from the team", data.note) : ""),
+        (data.note ? callout("Note from the team", data.note) : "") +
+        paymentSection(data.banking, data.reference),
       cta: data.quotationUrl ? { label: "View project progress", url: data.quotationUrl } : undefined,
       footerNote: "You'll receive an email each time your project moves forward.",
       logoUrl: data.logoUrl,

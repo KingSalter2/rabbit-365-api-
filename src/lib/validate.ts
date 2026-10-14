@@ -116,3 +116,11 @@ export const quotationProgressSchema = z.object({
   notifyClient: z.boolean().optional(),
   steps: z.array(progressStepSchema).max(50).optional(),
 });
+
+export const bankingSchema = z.object({
+  bankName: optionalTrimmed(120),
+  accountName: optionalTrimmed(120),
+  accountNumber: optionalTrimmed(40),
+  accountType: optionalTrimmed(40),
+  branchCode: optionalTrimmed(40),
+});

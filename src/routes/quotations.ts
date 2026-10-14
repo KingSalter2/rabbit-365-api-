@@ -13,6 +13,7 @@ import { clientIp, fail, ok } from "../lib/http";
 import { sendLoggedEmail } from "../lib/notify";
 import { defaultProgressRows, PROJECT_STATUS_LABELS } from "../lib/progress";
 import { generateQuoteNumber } from "../lib/quoteNumber";
+import { getBanking, type BankingDetails } from "../lib/settings";
 import { db } from "../lib/supabase";
 import { computeTotals, type PricedItem } from "../lib/totals";
 import { verifyTurnstile } from "../lib/turnstile";
@@ -26,7 +27,13 @@ type QuotationRow = Record<string, any>;
 type SectionRow = Record<string, any>;
 type ItemRow = Record<string, any>;
 
-function serializeQuotation(q: QuotationRow, sections: SectionRow[], items: ItemRow[], progress: SectionRow[]) {
+function serializeQuotation(
+  q: QuotationRow,
+  sections: SectionRow[],
+  items: ItemRow[],
+  progress: SectionRow[],
+  banking: BankingDetails | null,
+) {
   return {
     id: q.id,
     quoteNumber: q.quote_number,
@@ -56,6 +63,7 @@ function serializeQuotation(q: QuotationRow, sections: SectionRow[], items: Item
     total: Number(q.total),
     acceptedAt: q.accepted_at ?? undefined,
     projectStatus: q.project_status ?? undefined,
+    banking: banking ?? undefined,
     progress: progress.map((p) => ({
       position: p.position,
       label: p.label,
@@ -100,7 +108,8 @@ async function loadQuotation(client: SupabaseClient, id: string) {
     client.from("quotation_progress").select("*").eq("quotation_id", id).order("position", { ascending: true }),
   ]);
 
-  return serializeQuotation(q, sections ?? [], items ?? [], progress ?? []);
+  const banking = q.status === "accepted" ? await getBanking(client) : null;
+  return serializeQuotation(q, sections ?? [], items ?? [], progress ?? [], banking);
 }
 
 async function replaceChildren(
@@ -323,6 +332,8 @@ quotations.put("/:id/progress", requireAdmin, zValidator("json", quotationProgre
       })),
       note: input.note,
       quotationUrl: `${(c.env.APP_URL ?? "").replace(/\/$/, "")}/quotation/${id}`,
+      banking: full.projectStatus === "awaiting_deposit" ? full.banking : null,
+      reference: full.quoteNumber,
       logoUrl: brandLogoUrl(c.env.ASSET_URL),
     });
     await sendLoggedEmail(c.env, {
@@ -422,6 +433,8 @@ quotations.post("/:id/accept", zValidator("json", quotationAcceptSchema), async 
         total,
         acceptedAt,
         quotationUrl: `${(c.env.APP_URL ?? "").replace(/\/$/, "")}/quotation/${id}`,
+        banking: full.banking,
+        reference: full.quoteNumber,
         logoUrl,
       });
       await sendLoggedEmail(c.env, {

@@ -7,6 +7,7 @@ import {
   quotationProgressEmail,
   type EmailContent,
 } from "./emails";
+import type { BankingDetails } from "./settings";
 
 export type SampleEmailKey =
   | "lead"
@@ -50,7 +51,11 @@ export const SAMPLE_EMAILS: SampleEmailMeta[] = [
 ];
 
 /** Render a template with representative sample data for previewing. */
-export function renderSampleEmail(key: string, baseUrl: string): EmailContent | null {
+export function renderSampleEmail(
+  key: string,
+  baseUrl: string,
+  banking?: BankingDetails | null,
+): EmailContent | null {
   const base = (baseUrl || "https://www.rabbit365.co.za").replace(/\/$/, "");
   const portalUrl = `${base}/ops`;
   const logoUrl = brandLogoUrl(base);
@@ -108,6 +113,8 @@ export function renderSampleEmail(key: string, baseUrl: string): EmailContent | 
         total: "R10 000,00",
         acceptedAt: "14 October 2026, 18:37",
         quotationUrl: `${base}/quotation/8f2c1a64-3d9e-4b7a-9c15-6e0d2f4a91b3`,
+        banking,
+        reference: "R365-2026-0002",
         logoUrl,
       });
     case "quotation-progress":
@@ -124,6 +131,8 @@ export function renderSampleEmail(key: string, baseUrl: string): EmailContent | 
           { label: "Handover", description: "Deployment, documentation and final handover.", status: "pending" },
         ],
         quotationUrl: `${base}/quotation/8f2c1a64-3d9e-4b7a-9c15-6e0d2f4a91b3`,
+        banking,
+        reference: "R365-2026-0002",
         logoUrl,
       });
     default:

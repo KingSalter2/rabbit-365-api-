@@ -10,6 +10,7 @@ import emails from "./routes/emails";
 import health from "./routes/health";
 import leads from "./routes/leads";
 import quotations from "./routes/quotations";
+import settings from "./routes/settings";
 
 const app = new Hono<Env>();
 
@@ -28,6 +29,7 @@ app.route("/api/assets", assets);
 app.route("/api/auth", authRoutes);
 app.route("/api/leads", leads);
 app.route("/api/quotations", quotations);
+app.route("/api/settings", settings);
 app.route("/api/emails", emails);
 
 app.route("/dev", dev);
