@@ -4,10 +4,16 @@ import {
   leadNotificationEmail,
   quotationAcceptanceClientEmail,
   quotationAcceptedTeamEmail,
+  quotationProgressEmail,
   type EmailContent,
 } from "./emails";
 
-export type SampleEmailKey = "lead" | "lead-client" | "quotation-team" | "quotation-client";
+export type SampleEmailKey =
+  | "lead"
+  | "lead-client"
+  | "quotation-team"
+  | "quotation-client"
+  | "quotation-progress";
 
 export type SampleEmailMeta = {
   key: SampleEmailKey;
@@ -35,6 +41,11 @@ export const SAMPLE_EMAILS: SampleEmailMeta[] = [
     key: "quotation-client",
     label: "Quotation accepted (client)",
     description: "Confirmation sent to the client after they accept a quotation.",
+  },
+  {
+    key: "quotation-progress",
+    label: "Project progress (client)",
+    description: "Sent to the client whenever their project progress is updated.",
   },
 ];
 
@@ -96,6 +107,23 @@ export function renderSampleEmail(key: string, baseUrl: string): EmailContent | 
         title: "STARTER BUSINESS WEBSITE",
         total: "R10 000,00",
         acceptedAt: "14 October 2026, 18:37",
+        quotationUrl: `${base}/quotation/8f2c1a64-3d9e-4b7a-9c15-6e0d2f4a91b3`,
+        logoUrl,
+      });
+    case "quotation-progress":
+      return quotationProgressEmail({
+        clientName: "Sample Client",
+        quoteNumber: "R365-2026-0002",
+        title: "STARTER BUSINESS WEBSITE",
+        statusLabel: "In progress",
+        steps: [
+          { label: "Discovery & planning", description: "Confirm scope, milestones and kick-off details.", status: "done" },
+          { label: "Design", description: "Wireframes and UI design for review and sign-off.", status: "done" },
+          { label: "Development", description: "Build, integrate and test the agreed deliverables.", status: "in_progress" },
+          { label: "Testing & QA", description: "Security, responsive and functionality checks.", status: "pending" },
+          { label: "Handover", description: "Deployment, documentation and final handover.", status: "pending" },
+        ],
+        note: "We've completed the design sign-off and kicked off development this week.",
         quotationUrl: `${base}/quotation/8f2c1a64-3d9e-4b7a-9c15-6e0d2f4a91b3`,
         logoUrl,
       });

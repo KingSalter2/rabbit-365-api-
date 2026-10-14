@@ -374,3 +374,79 @@ export function quotationAcceptanceClientEmail(data: QuotationClientConfirmData)
     }),
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Project progress                                                    */
+/* ------------------------------------------------------------------ */
+
+export type ProgressStepView = {
+  label: string;
+  description?: string;
+  status: "pending" | "in_progress" | "done";
+};
+
+function progressList(steps: ProgressStepView[]): string {
+  const rows = steps
+    .map((step) => {
+      const done = step.status === "done";
+      const active = step.status === "in_progress";
+      const dot = done
+        ? `<span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${COLOR.mint};color:#ffffff;font-size:12px;line-height:20px;text-align:center;font-weight:700">&#10003;</span>`
+        : active
+          ? `<span style="display:inline-block;width:20px;height:20px;border-radius:50%;border:2px solid ${COLOR.mint};background:#ECFDF5"></span>`
+          : `<span style="display:inline-block;width:20px;height:20px;border-radius:50%;border:2px solid ${COLOR.border};background:#ffffff"></span>`;
+      const tag = active
+        ? `<span style="margin-left:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:${COLOR.mint}">In progress</span>`
+        : done
+          ? `<span style="margin-left:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#94A3B8">Done</span>`
+          : "";
+      const labelColor = active || done ? COLOR.ink : COLOR.muted;
+      return `<tr>
+        <td style="width:34px;vertical-align:top;padding:11px 0">${dot}</td>
+        <td style="padding:11px 0 11px 8px;border-bottom:1px solid ${COLOR.border}">
+          <span style="font-size:14px;font-weight:${active || done ? 700 : 600};color:${labelColor}">${esc(
+            step.label,
+          )}</span>${tag}
+          ${
+            step.description
+              ? `<div style="margin-top:2px;font-size:12px;line-height:18px;color:${COLOR.muted}">${esc(
+                  step.description,
+                )}</div>`
+              : ""
+          }
+        </td>
+      </tr>`;
+    })
+    .join("");
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 20px">${rows}</table>`;
+}
+
+export type QuotationProgressEmailData = {
+  clientName: string;
+  quoteNumber: string;
+  title: string;
+  statusLabel: string;
+  steps: ProgressStepView[];
+  note?: string | null;
+  quotationUrl?: string;
+  logoUrl?: string;
+};
+
+/** Sent to the client whenever their project progress is updated. */
+export function quotationProgressEmail(data: QuotationProgressEmailData): EmailContent {
+  return {
+    subject: `Project update: ${data.quoteNumber} — ${data.statusLabel}`,
+    html: layout({
+      preheader: `${data.title} is now: ${data.statusLabel}.`,
+      heading: `Update on ${data.quoteNumber}`,
+      intro: `Hi ${data.clientName || "there"}, here's the latest on your project.`,
+      content:
+        banner(`Status: ${data.statusLabel}`) +
+        progressList(data.steps) +
+        (data.note ? callout("Note from the team", data.note) : ""),
+      cta: data.quotationUrl ? { label: "View project progress", url: data.quotationUrl } : undefined,
+      footerNote: "You'll receive an email each time your project moves forward.",
+      logoUrl: data.logoUrl,
+    }),
+  };
+}

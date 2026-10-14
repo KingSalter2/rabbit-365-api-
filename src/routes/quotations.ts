@@ -3,14 +3,20 @@ import { Hono } from "hono";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env";
 import { logActivity } from "../lib/audit";
-import { brandLogoUrl, quotationAcceptanceClientEmail, quotationAcceptedTeamEmail } from "../lib/emails";
+import {
+  brandLogoUrl,
+  quotationAcceptanceClientEmail,
+  quotationAcceptedTeamEmail,
+  quotationProgressEmail,
+} from "../lib/emails";
 import { clientIp, fail, ok } from "../lib/http";
 import { sendLoggedEmail } from "../lib/notify";
+import { defaultProgressRows, PROJECT_STATUS_LABELS } from "../lib/progress";
 import { generateQuoteNumber } from "../lib/quoteNumber";
 import { db } from "../lib/supabase";
 import { computeTotals, type PricedItem } from "../lib/totals";
 import { verifyTurnstile } from "../lib/turnstile";
-import { quotationAcceptSchema, quotationInputSchema } from "../lib/validate";
+import { quotationAcceptSchema, quotationInputSchema, quotationProgressSchema } from "../lib/validate";
 import { requireAdmin } from "../middleware/auth";
 
 const quotations = new Hono<Env>();
@@ -20,7 +26,7 @@ type QuotationRow = Record<string, any>;
 type SectionRow = Record<string, any>;
 type ItemRow = Record<string, any>;
 
-function serializeQuotation(q: QuotationRow, sections: SectionRow[], items: ItemRow[]) {
+function serializeQuotation(q: QuotationRow, sections: SectionRow[], items: ItemRow[], progress: SectionRow[]) {
   return {
     id: q.id,
     quoteNumber: q.quote_number,
@@ -49,6 +55,16 @@ function serializeQuotation(q: QuotationRow, sections: SectionRow[], items: Item
     discount: Number(q.discount),
     total: Number(q.total),
     acceptedAt: q.accepted_at ?? undefined,
+    projectStatus: q.project_status ?? undefined,
+    progress: progress.map((p) => ({
+      position: p.position,
+      label: p.label,
+      description: p.description ?? undefined,
+      status: p.status,
+      note: p.note ?? undefined,
+      completedAt: p.completed_at ?? undefined,
+      updatedAt: p.updated_at,
+    })),
     createdAt: q.created_at,
     updatedAt: q.updated_at,
   };
@@ -74,16 +90,17 @@ async function loadQuotation(client: SupabaseClient, id: string) {
   const { data: q, error } = await client.from("quotations").select("*").eq("id", id).maybeSingle();
   if (error || !q) return null;
 
-  const [{ data: sections }, { data: items }] = await Promise.all([
+  const [{ data: sections }, { data: items }, { data: progress }] = await Promise.all([
     client
       .from("quotation_scope_sections")
       .select("*")
       .eq("quotation_id", id)
       .order("position", { ascending: true }),
     client.from("quotation_items").select("*").eq("quotation_id", id).order("position", { ascending: true }),
+    client.from("quotation_progress").select("*").eq("quotation_id", id).order("position", { ascending: true }),
   ]);
 
-  return serializeQuotation(q, sections ?? [], items ?? []);
+  return serializeQuotation(q, sections ?? [], items ?? [], progress ?? []);
 }
 
 async function replaceChildren(
@@ -244,6 +261,82 @@ quotations.delete("/:id", requireAdmin, async (c) => {
   return ok(c, { id });
 });
 
+// Admin: update project progress / lifecycle for an accepted quotation.
+quotations.put("/:id/progress", requireAdmin, zValidator("json", quotationProgressSchema), async (c) => {
+  const admin = c.get("admin");
+  const id = c.req.param("id");
+  if (!UUID_RE.test(id)) return fail(c, "Quotation not found", 404);
+
+  const input = c.req.valid("json");
+  const client = db(c.env);
+
+  const { data: existing, error: loadErr } = await client
+    .from("quotations")
+    .select("id,status")
+    .eq("id", id)
+    .maybeSingle();
+  if (loadErr) return fail(c, loadErr.message, 500);
+  if (!existing) return fail(c, "Quotation not found", 404);
+  if (existing.status !== "accepted") return fail(c, "Only accepted quotations have progress", 400);
+
+  const nowIso = new Date().toISOString();
+
+  if (input.steps) {
+    await client.from("quotation_progress").delete().eq("quotation_id", id);
+    if (input.steps.length) {
+      await client.from("quotation_progress").insert(
+        input.steps.map((step, index) => ({
+          quotation_id: id,
+          position: step.position ?? index,
+          label: step.label,
+          description: step.description ?? null,
+          status: step.status,
+          note: step.note ?? null,
+          completed_at: step.status === "done" ? nowIso : null,
+          updated_at: nowIso,
+        })),
+      );
+    }
+  }
+
+  if (input.projectStatus) {
+    await client.from("quotations").update({ project_status: input.projectStatus }).eq("id", id);
+  }
+
+  const full = await loadQuotation(client, id);
+  await logActivity(c, admin, { action: "quotation.progress_updated", entity: "quotation", entityId: id });
+
+  // Email the client the new progress (unless explicitly silenced).
+  if (full && full.client.email && input.notifyClient !== false) {
+    const statusLabel =
+      (full.projectStatus && PROJECT_STATUS_LABELS[full.projectStatus as keyof typeof PROJECT_STATUS_LABELS]) ||
+      "Updated";
+    const email = quotationProgressEmail({
+      clientName: full.client.name,
+      quoteNumber: full.quoteNumber,
+      title: full.title,
+      statusLabel,
+      steps: full.progress.map((p) => ({
+        label: p.label,
+        description: p.description,
+        status: p.status,
+      })),
+      note: input.note,
+      quotationUrl: `${(c.env.APP_URL ?? "").replace(/\/$/, "")}/quotation/${id}`,
+      logoUrl: brandLogoUrl(c.env.ASSET_URL),
+    });
+    await sendLoggedEmail(c.env, {
+      to: full.client.email,
+      replyTo: c.env.NOTIFY_EMAIL_TO,
+      subject: email.subject,
+      html: email.html,
+      template: "quotation_progress",
+    });
+  }
+
+  return ok(c, full);
+});
+
 // Public: accept a quotation.
 quotations.post("/:id/accept", zValidator("json", quotationAcceptSchema), async (c) => {
   const id = c.req.param("id");
@@ -271,8 +364,18 @@ quotations.post("/:id/accept", zValidator("json", quotationAcceptSchema), async 
         accepted_at: new Date().toISOString(),
         accepted_by_name: body.name ?? null,
         accepted_ip: ip ?? null,
+        project_status: "awaiting_deposit",
       })
       .eq("id", id);
+
+    // Seed the standard project stages (all pending) if none exist yet.
+    const { count } = await client
+      .from("quotation_progress")
+      .select("id", { count: "exact", head: true })
+      .eq("quotation_id", id);
+    if (!count) {
+      await client.from("quotation_progress").insert(defaultProgressRows(id));
+    }
   }
 
   const full = await loadQuotation(client, id);

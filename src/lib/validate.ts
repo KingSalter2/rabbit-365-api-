@@ -101,3 +101,18 @@ export const quotationAcceptSchema = z.object({
   name: z.string().trim().max(200).optional(),
   turnstileToken: z.string().optional(),
 });
+
+const progressStepSchema = z.object({
+  position: z.number().int().min(0).max(100).optional(),
+  label: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(500).optional(),
+  status: z.enum(["pending", "in_progress", "done"]).default("pending"),
+  note: z.string().trim().max(2000).optional(),
+});
+
+export const quotationProgressSchema = z.object({
+  projectStatus: z.enum(["awaiting_deposit", "in_progress", "completed", "cancelled"]).optional(),
+  note: optionalTrimmed(2000),
+  notifyClient: z.boolean().optional(),
+  steps: z.array(progressStepSchema).max(50).optional(),
+});
