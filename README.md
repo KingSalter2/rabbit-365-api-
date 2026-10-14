@@ -69,6 +69,7 @@ All transactional email HTML lives in `src/lib/emails.ts` (brand layout +
 templates); **Resend is only the transport**. Templates:
 
 - `leadNotificationEmail` — new website enquiry (to the team)
+- `leadConfirmationEmail` — enquiry acknowledgement (to the person who submitted)
 - `quotationAcceptedTeamEmail` — client accepted (to the team)
 - `quotationAcceptanceClientEmail` — confirmation (to the client)
 

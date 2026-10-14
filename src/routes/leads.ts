@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import type { Env } from "../env";
 import { logActivity } from "../lib/audit";
 import { hashIp } from "../lib/crypto";
-import { brandLogoUrl, leadNotificationEmail } from "../lib/emails";
+import { brandLogoUrl, leadConfirmationEmail, leadNotificationEmail } from "../lib/emails";
 import { clientIp, fail, ok } from "../lib/http";
 import { sendLoggedEmail } from "../lib/notify";
 import { db } from "../lib/supabase";
@@ -74,6 +74,31 @@ leads.post("/", zValidator("json", leadCreateSchema), async (c) => {
       subject: email.subject,
       html: email.html,
       template: "lead_notification",
+    });
+  }
+
+  // Acknowledge the enquiry to the person who submitted it.
+  if (body.email) {
+    const confirmation = leadConfirmationEmail(
+      {
+        name: body.name,
+        email: body.email,
+        phone: body.phone,
+        company: body.company,
+        service: body.service,
+        budget: body.budget,
+        category: body.category,
+        formType: body.formType,
+        message: body.message,
+      },
+      { logoUrl: brandLogoUrl(c.env.APP_URL), siteUrl: c.env.APP_URL },
+    );
+    await sendLoggedEmail(c.env, {
+      to: body.email,
+      replyTo: c.env.NOTIFY_EMAIL_TO,
+      subject: confirmation.subject,
+      html: confirmation.html,
+      template: "lead_confirmation",
     });
   }
 

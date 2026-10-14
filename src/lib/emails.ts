@@ -267,6 +267,38 @@ export function leadNotificationEmail(
   };
 }
 
+/** Confirmation sent to the person who submitted a website enquiry form. */
+export function leadConfirmationEmail(
+  lead: LeadEmailData,
+  opts: { logoUrl?: string; siteUrl?: string } = {},
+): EmailContent {
+  const firstName = (lead.name || "there").trim().split(/\s+/)[0];
+
+  const rows: DetailRow[] = [
+    { label: "Name", value: lead.name },
+    { label: "Email", value: lead.email },
+    { label: "Phone", value: lead.phone },
+    { label: "Company", value: lead.company },
+    { label: "Service", value: lead.service },
+    { label: "Budget", value: lead.budget },
+  ];
+
+  return {
+    subject: "We've received your enquiry — Rabbit 365",
+    html: layout({
+      preheader: "Thanks for reaching out — a member of our team will be in touch shortly.",
+      heading: `Thanks, ${firstName}!`,
+      intro:
+        "We've received your message and a member of our team will get back to you within one business day. For your records, here's a copy of what you sent us:",
+      content:
+        detailTable(rows) + (lead.message ? callout("Your message", lead.message) : ""),
+      cta: { label: "Explore our work", url: opts.siteUrl || BRAND.site },
+      footerNote: "In a hurry? Just reply to this email and we'll pick it up from there.",
+      logoUrl: opts.logoUrl,
+    }),
+  };
+}
+
 export type QuotationAcceptedTeamData = {
   quoteNumber: string;
   title: string;
