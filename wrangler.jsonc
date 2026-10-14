@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rabbit-365-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-02-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "ENVIRONMENT": "production",
+    "APP_URL": "https://www.rabbit365.co.za",
+    "NOTIFY_EMAIL_TO": "info@rabbit365.co.za",
+    "EMAIL_FROM": "Rabbit 365 <no-reply@emails.rabbit365.co.za>",
+    "SUPERADMIN_EMAIL": "info@rabbit365.co.za"
+  },
+  "routes": [
+    {
+      "pattern": "www.rabbit365.co.za/api/*",
+      "zone_name": "rabbit365.co.za"
+    }
+  ]
+}

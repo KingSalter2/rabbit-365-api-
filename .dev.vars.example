@@ -1,0 +1,20 @@
+# Local Worker secrets for `wrangler dev`.
+# Copy this file to `.dev.vars` (NOT `.env` — wrangler only reads `.dev.vars`).
+# Never commit the real file.
+
+# --- Required ---
+SUPABASE_URL=https://YOUR-PROJECT.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# --- Optional (leave blank to disable) ---
+# Turnstile server-side verification (skipped when blank)
+TURNSTILE_SECRET_KEY=
+# Resend transactional email (skipped when blank)
+RESEND_API_KEY=
+
+# --- Non-secret config (mirrors wrangler.jsonc vars) ---
+ENVIRONMENT=development
+APP_URL=http://localhost:8080
+NOTIFY_EMAIL_TO=info@rabbit365.co.za
+EMAIL_FROM=Rabbit 365 <no-reply@emails.rabbit365.co.za>
+SUPERADMIN_EMAIL=info@rabbit365.co.za
