@@ -123,7 +123,6 @@ export function renderSampleEmail(key: string, baseUrl: string): EmailContent | 
           { label: "Testing & QA", description: "Security, responsive and functionality checks.", status: "pending" },
           { label: "Handover", description: "Deployment, documentation and final handover.", status: "pending" },
         ],
-        note: "We've completed the design sign-off and kicked off development this week.",
         quotationUrl: `${base}/quotation/8f2c1a64-3d9e-4b7a-9c15-6e0d2f4a91b3`,
         logoUrl,
       });
