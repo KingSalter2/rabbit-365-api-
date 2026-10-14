@@ -96,7 +96,7 @@ export function renderSampleEmail(key: string, baseUrl: string): EmailContent | 
         title: "STARTER BUSINESS WEBSITE",
         total: "R10 000,00",
         acceptedAt: "14 October 2026, 18:37",
-        quotationUrl: `${base}/quotation/00000000-0000-0000-0000-000000000002`,
+        quotationUrl: `${base}/quotation/8f2c1a64-3d9e-4b7a-9c15-6e0d2f4a91b3`,
         logoUrl,
       });
     default:
