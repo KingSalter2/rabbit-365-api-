@@ -34,18 +34,25 @@ auth.post("/login", zValidator("json", loginSchema), async (c) => {
 
   const isSuper = Boolean(data.user.email && superEmail && data.user.email.toLowerCase() === superEmail);
   if (!existing && !isSuper) {
-    return fail(c, "This account does not have portal access", 403);
-  }
-  if (!existing && isSuper && data.user.email) {
+    const { data: member } = await client
+      .from("client_members")
+      .select("id,status")
+      .eq("user_id", data.user.id)
+      .maybeSingle();
+    if (!member || member.status !== "active") {
+      return fail(c, "This account does not have portal access", 403);
+    }
+  } else {
+    if (!existing && isSuper && data.user.email) {
+      await client
+        .from("admin_users")
+        .upsert({ id: data.user.id, email: data.user.email, role: "superadmin" });
+    }
     await client
       .from("admin_users")
-      .upsert({ id: data.user.id, email: data.user.email, role: "superadmin" });
+      .update({ last_login_at: new Date().toISOString() })
+      .eq("id", data.user.id);
   }
-
-  await client
-    .from("admin_users")
-    .update({ last_login_at: new Date().toISOString() })
-    .eq("id", data.user.id);
 
   setSessionCookies(c, data.session);
   return ok(c, { user: { id: data.user.id, email: data.user.email } });

@@ -1,10 +1,19 @@
 import {
   brandLogoUrl,
+  clientInviteEmail,
+  clientRegisteredTeamEmail,
   leadConfirmationEmail,
   leadNotificationEmail,
   quotationAcceptanceClientEmail,
   quotationAcceptedTeamEmail,
   quotationProgressEmail,
+  supportTicketAutoClosedClient,
+  supportTicketCreatedClient,
+  supportTicketCreatedTeam,
+  supportTicketReminderClient,
+  supportTicketReplyClient,
+  supportTicketReplyTeam,
+  supportTicketStatusClient,
   type EmailContent,
 } from "./emails";
 import type { BankingDetails } from "./settings";
@@ -14,7 +23,16 @@ export type SampleEmailKey =
   | "lead-client"
   | "quotation-team"
   | "quotation-client"
-  | "quotation-progress";
+  | "quotation-progress"
+  | "client-invite"
+  | "client-registered-team"
+  | "support-ticket-client"
+  | "support-ticket-team"
+  | "support-reply-client"
+  | "support-reply-team"
+  | "support-status"
+  | "support-reminder"
+  | "support-auto-closed";
 
 export type SampleEmailMeta = {
   key: SampleEmailKey;
@@ -47,6 +65,51 @@ export const SAMPLE_EMAILS: SampleEmailMeta[] = [
     key: "quotation-progress",
     label: "Project progress (client)",
     description: "Sent to the client whenever their project progress is updated.",
+  },
+  {
+    key: "client-invite",
+    label: "Portal invite (client)",
+    description: "Sent to a client when the team invites them to the support portal.",
+  },
+  {
+    key: "client-registered-team",
+    label: "Client registered (team)",
+    description: "Sent to the team when a client completes portal registration.",
+  },
+  {
+    key: "support-ticket-client",
+    label: "Ticket received (client)",
+    description: "Confirmation sent to the client when they raise a support ticket.",
+  },
+  {
+    key: "support-ticket-team",
+    label: "New ticket (team)",
+    description: "Sent to the team whenever a client raises a support ticket.",
+  },
+  {
+    key: "support-reply-client",
+    label: "Agent reply (client)",
+    description: "Sent to the client when the team replies to their ticket.",
+  },
+  {
+    key: "support-reply-team",
+    label: "Client reply (team)",
+    description: "Sent to the team when a client replies to a ticket.",
+  },
+  {
+    key: "support-status",
+    label: "Ticket status changed (client)",
+    description: "Sent to the client when the team changes a ticket status.",
+  },
+  {
+    key: "support-reminder",
+    label: "Waiting-on-client reminder (client)",
+    description: "Sent once after 3 business days when a ticket is waiting on the client.",
+  },
+  {
+    key: "support-auto-closed",
+    label: "Ticket auto-closed (client)",
+    description: "Sent when a waiting-on-client ticket is closed after no reply.",
   },
 ];
 
@@ -135,7 +198,78 @@ export function renderSampleEmail(
         reference: "R365-2026-0002",
         logoUrl,
       });
+    case "client-invite":
+      return clientInviteEmail({
+        orgName: "Bright Idea Co.",
+        email: "naledi@brightideaco.co.za",
+        inviteUrl: `${base}/support/register?invite=3d9e4b7a-9c15-6e0d-2f4a-91b3`,
+        expiresAt: new Date(Date.now() + 14 * 86_400_000).toISOString(),
+        invitedByName: "Rabbit 365",
+        logoUrl,
+      });
+    case "client-registered-team":
+      return clientRegisteredTeamEmail({
+        orgName: "Bright Idea Co.",
+        userName: "Naledi Molefe",
+        email: "naledi@brightideaco.co.za",
+        registeredAt: new Date().toISOString(),
+        portalUrl,
+        logoUrl,
+      });
+    case "support-ticket-client":
+      return supportTicketCreatedClient(supportSample(base, logoUrl));
+    case "support-ticket-team":
+      return supportTicketCreatedTeam(supportSample(base, logoUrl));
+    case "support-reply-client":
+      return supportTicketReplyClient({
+        ...supportSample(base, logoUrl),
+        message:
+          "Hi Naledi,\n\nThanks for flagging this. We've deployed a fix to the contact form and tested it from both desktop and mobile. Could you confirm it's working on your side?",
+      });
+    case "support-reply-team":
+      return supportTicketReplyTeam({
+        ...supportSample(base, logoUrl),
+        authorName: "Naledi Molefe",
+        message:
+          "Thanks for the update — I just tested it and the form is sending again. One more thing: can we also add a honeypot field to reduce spam?",
+      });
+    case "support-status":
+      return supportTicketStatusClient({
+        ...supportSample(base, logoUrl),
+        status: "Resolved",
+        message: "This should be sorted now. We'll keep the ticket open for 48 hours in case anything else comes up.",
+      });
+    case "support-reminder":
+      return supportTicketReminderClient({
+        ...supportSample(base, logoUrl),
+        status: "Waiting on client",
+      });
+    case "support-auto-closed":
+      return supportTicketAutoClosedClient({
+        ...supportSample(base, logoUrl),
+        status: "Closed",
+      });
     default:
       return null;
   }
+}
+
+function supportSample(base: string, logoUrl: string) {
+  return {
+    appUrl: base,
+    ticketId: "8f2c1a64-3d9e-4b7a-9c15-6e0d2f4a91b3",
+    number: "R365-T-0007",
+    subject: "Contact form not sending on the main website",
+    orgName: "Bright Idea Co.",
+    siteLabel: "Main website",
+    siteUrl: "https://brightideaco.co.za",
+    category: "Support",
+    priority: "High",
+    status: "In progress",
+    authorName: "Naledi Molefe",
+    clientName: "Naledi Molefe",
+    message:
+      "Hi Rabbit 365,\n\nSince this morning the contact form on our homepage shows a success message but we aren't receiving any emails. We've checked spam and the inbox is fine.\n\nCan you take a look?",
+    logoUrl,
+  };
 }

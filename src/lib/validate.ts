@@ -124,3 +124,88 @@ export const bankingSchema = z.object({
   accountType: optionalTrimmed(40),
   branchCode: optionalTrimmed(40),
 });
+
+/* ------------------------------------------------------------------ */
+/* Client support                                                      */
+/* ------------------------------------------------------------------ */
+
+const emailOptional = z
+  .string()
+  .trim()
+  .email()
+  .max(320)
+  .optional()
+  .or(z.literal(""))
+  .transform((v) => (v ? v : undefined));
+
+export const clientOrgSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  slug: optionalTrimmed(120),
+  primaryContactName: optionalTrimmed(200),
+  contactEmail: emailOptional,
+  contactPhone: optionalTrimmed(50),
+  notes: optionalTrimmed(5000),
+  relatedQuotationId: z.string().uuid().optional(),
+  status: z.enum(["active", "suspended", "archived"]).optional(),
+  supportEnabled: z.boolean().optional(),
+});
+
+export const clientOrgUpdateSchema = clientOrgSchema.partial();
+
+export const clientSiteSchema = z.object({
+  label: z.string().trim().min(1).max(200),
+  url: z.string().trim().min(3).max(500),
+  status: z.enum(["live", "maintenance", "offline", "archived"]).optional(),
+});
+
+export const clientSiteUpdateSchema = clientSiteSchema.partial();
+
+export const clientInviteCreateSchema = z.object({
+  email: z.string().trim().email().max(320),
+  role: z.enum(["admin", "member"]).optional(),
+  expiresInDays: z.number().int().min(1).max(90).optional(),
+});
+
+export const clientMemberUpdateSchema = z.object({
+  role: z.enum(["admin", "member"]).optional(),
+  status: z.enum(["active", "disabled"]).optional(),
+});
+
+export const clientRegisterSchema = z.object({
+  inviteCode: z.string().trim().min(1).max(100),
+  email: z.string().trim().email().max(320),
+  password: z.string().min(8).max(200),
+  fullName: z.string().trim().max(200).optional(),
+  turnstileToken: z.string().optional(),
+});
+
+export const ticketCreateSchema = z.object({
+  subject: z.string().trim().min(1).max(200),
+  category: z.enum(["support", "maintenance", "bug", "request", "other"]).default("support"),
+  priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+  siteId: z.string().uuid().optional(),
+  body: z.string().trim().min(1).max(10000),
+});
+
+export const ticketReplySchema = z.object({
+  body: z.string().trim().min(1).max(10000),
+});
+
+export const ticketAgentReplySchema = ticketReplySchema.extend({
+  isInternal: z.boolean().optional(),
+  resolve: z.boolean().optional(),
+});
+
+export const ticketUpdateSchema = z.object({
+  status: z
+    .enum(["open", "in_progress", "waiting_on_client", "resolved", "closed"])
+    .optional(),
+  priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
+  assignedTo: z.string().uuid().nullable().optional(),
+  category: z.enum(["support", "maintenance", "bug", "request", "other"]).optional(),
+  relatedQuotationId: z.string().uuid().nullable().optional(),
+});
+
+export const clientAssetRequestSchema = z.object({
+  purpose: z.string().trim().max(40).optional(),
+});

@@ -1,7 +1,7 @@
 import { createMiddleware } from "hono/factory";
 import type { Env } from "../env";
 import { fail } from "../lib/http";
-import { getAdminUser, getSessionUser } from "../lib/session";
+import { getAdminUser, getClientUser, getSessionUser } from "../lib/session";
 
 export const withUser = createMiddleware<Env>(async (c, next) => {
   c.set("user", await getSessionUser(c));
@@ -29,3 +29,16 @@ export const requireSuperadmin = createMiddleware<Env>(async (c, next) => {
   c.set("admin", admin);
   await next();
 });
+
+/** Requires a signed-in, active client member. */
+export const requireClient = createMiddleware<Env>(async (c, next) => {
+  const client = await getClientUser(c);
+  if (!client) return fail(c, "Unauthorized", 401);
+  c.set("client", client);
+  await next();
+});
+
+/** Client route guard for actions that need an active, enabled support plan. */
+export function clientCanWrite(client: { orgStatus: string; supportEnabled: boolean }): boolean {
+  return client.orgStatus === "active" && client.supportEnabled;
+}

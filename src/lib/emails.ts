@@ -482,3 +482,249 @@ export function quotationProgressEmail(data: QuotationProgressEmailData): EmailC
     }),
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Client support                                                      */
+/* ------------------------------------------------------------------ */
+
+export type SupportTicketEmailData = {
+  appUrl: string;
+  ticketId: string;
+  number: string;
+  subject: string;
+  orgName: string;
+  siteLabel?: string | null;
+  siteUrl?: string | null;
+  category: string;
+  priority: string;
+  status?: string;
+  /** Name of the person who wrote the message (agent for client emails, client for team emails). */
+  authorName?: string;
+  /** Name of the client being greeted — never the agent's name. */
+  clientName?: string;
+  message?: string;
+  /** True when the reply also resolved the ticket (reply & resolve). */
+  resolved?: boolean;
+  logoUrl?: string;
+};
+
+function supportTicketUrl(appUrl: string, ticketId: string): string {
+  return `${appUrl.replace(/\/$/, "")}/support/tickets/${ticketId}`;
+}
+
+function supportDetails(data: SupportTicketEmailData): string {
+  const site = [data.siteLabel, data.siteUrl].filter(Boolean).join(" — ");
+  return detailTable([
+    { label: "Ticket", value: data.number },
+    { label: "Subject", value: data.subject },
+    { label: "Client", value: data.orgName },
+    { label: "Website", value: site },
+    { label: "Category", value: data.category },
+    { label: "Priority", value: data.priority },
+    { label: "Status", value: data.status },
+  ]);
+}
+
+export function supportTicketCreatedClient(data: SupportTicketEmailData): EmailContent {
+  return {
+    subject: `We've received your request — ${data.number}`,
+    html: layout({
+      preheader: `Ticket ${data.number} has been created.`,
+      heading: "We've got your request",
+      intro: `Hi ${esc(data.clientName || "there")}, thanks for getting in touch. Our team will review your ticket and reply as soon as possible.`,
+      content:
+        supportDetails({ ...data, status: "Open" }) +
+        (data.message ? callout("Your message", data.message) : ""),
+      cta: { label: "View ticket", url: supportTicketUrl(data.appUrl, data.ticketId) },
+      footerNote: "You can reply to this ticket anytime from the client portal.",
+      logoUrl: data.logoUrl,
+    }),
+  };
+}
+
+export function supportTicketCreatedTeam(data: SupportTicketEmailData): EmailContent {
+  return {
+    subject: `New support ticket ${data.number} — ${data.orgName}`,
+    html: layout({
+      preheader: `${data.orgName} raised ${data.number}.`,
+      heading: "New support ticket",
+      intro: `${data.orgName} has raised a new request.`,
+      content:
+        supportDetails({ ...data, status: "Open" }) +
+        (data.message ? callout("Message", data.message) : ""),
+      cta: { label: "Open support queue", url: `${data.appUrl.replace(/\/$/, "")}/ops` },
+      logoUrl: data.logoUrl,
+    }),
+  };
+}
+
+export function supportTicketReplyClient(data: SupportTicketEmailData): EmailContent {
+  return {
+    subject: `New reply on ${data.number} — ${data.subject}`,
+    html: layout({
+      preheader: `The team replied to ${data.number}.`,
+      heading: "You have a new reply",
+      intro: `Hi ${esc(data.clientName || "there")}, the Rabbit 365 team replied to your ticket.`,
+      content:
+        supportDetails(data) +
+        (data.message
+          ? callout(`Reply from ${data.authorName || "the Rabbit 365 team"}`, data.message)
+          : "") +
+        (data.resolved
+          ? callout(
+              "Ticket resolved",
+              "We've marked this request as resolved. If you need anything else, just reply to this email and it will reopen the ticket.",
+            )
+          : ""),
+      cta: { label: "View and reply", url: supportTicketUrl(data.appUrl, data.ticketId) },
+      footerNote: data.resolved
+        ? "Replying to this email will reopen the ticket."
+        : "For the fastest response, please reply inside the portal.",
+      logoUrl: data.logoUrl,
+    }),
+  };
+}
+
+export function supportTicketReplyTeam(data: SupportTicketEmailData): EmailContent {
+  return {
+    subject: `Client reply on ${data.number} — ${data.orgName}`,
+    html: layout({
+      preheader: `${data.orgName} replied to ${data.number}.`,
+      heading: "New client reply",
+      intro: `${data.orgName} replied to ${data.number}.`,
+      content:
+        supportDetails(data) +
+        (data.message ? callout(`Reply from ${data.authorName || "the client"}`, data.message) : ""),
+      cta: { label: "Open support queue", url: `${data.appUrl.replace(/\/$/, "")}/ops` },
+      logoUrl: data.logoUrl,
+    }),
+  };
+}
+
+export function supportTicketStatusClient(data: SupportTicketEmailData): EmailContent {
+  return {
+    subject: `${data.number} is now ${data.status}`,
+    html: layout({
+      preheader: `Ticket ${data.number} has been updated.`,
+      heading: "Your ticket was updated",
+      intro: `Hi ${esc(data.clientName || "there")}, the status of your ticket has changed to ${data.status}.`,
+      content:
+        supportDetails(data) +
+        (data.message ? callout("Note from the team", data.message) : ""),
+      cta: { label: "View ticket", url: supportTicketUrl(data.appUrl, data.ticketId) },
+      logoUrl: data.logoUrl,
+    }),
+  };
+}
+
+export function supportTicketReminderClient(data: SupportTicketEmailData): EmailContent {
+  return {
+    subject: `Still need a hand with ${data.number}?`,
+    html: layout({
+      preheader: `We're waiting to hear back about ${data.number}.`,
+      heading: "We're waiting to hear back",
+      intro: `Hi ${esc(data.clientName || "there")}, we replied to your ticket ${data.number} and we're waiting to hear back from you.`,
+      content:
+        supportDetails(data) +
+        callout(
+          "What happens next",
+          "If we don't hear back within 7 days, we'll close this ticket. You can reply anytime to reopen it.",
+        ),
+      cta: { label: "View and reply", url: supportTicketUrl(data.appUrl, data.ticketId) },
+      footerNote: "If everything is resolved, no action is needed — we'll close the ticket automatically.",
+      logoUrl: data.logoUrl,
+    }),
+  };
+}
+
+export function supportTicketAutoClosedClient(data: SupportTicketEmailData): EmailContent {
+  return {
+    subject: `${data.number} has been closed`,
+    html: layout({
+      preheader: `Ticket ${data.number} was closed after no reply.`,
+      heading: "We've closed this ticket",
+      intro: `Hi ${esc(data.clientName || "there")}, we didn't hear back about ${data.number}, so we've closed it for now.`,
+      content:
+        supportDetails(data) +
+        callout(
+          "Need more help?",
+          "Just reply to this email or reopen the ticket from the client portal and we'll pick it up again.",
+        ),
+      cta: { label: "Reopen ticket", url: supportTicketUrl(data.appUrl, data.ticketId) },
+      footerNote: "Replying to this email will reopen your ticket.",
+      logoUrl: data.logoUrl,
+    }),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Client portal invites & registration                                */
+/* ------------------------------------------------------------------ */
+
+function longDate(value?: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
+}
+
+export type ClientInviteEmailData = {
+  orgName: string;
+  email: string;
+  inviteUrl: string;
+  expiresAt?: string | null;
+  invitedByName?: string | null;
+  logoUrl?: string;
+};
+
+/** Sent to a client when the team creates a portal invite. */
+export function clientInviteEmail(data: ClientInviteEmailData): EmailContent {
+  const invitedBy = data.invitedByName ? `${esc(data.invitedByName)} at ` : "";
+  return {
+    subject: `You're invited to the ${data.orgName} support portal`,
+    html: layout({
+      preheader: `Set up your client portal account for ${data.orgName}.`,
+      heading: "Set up your client portal",
+      intro: `${invitedBy}<strong>${esc(data.orgName)}</strong> uses Rabbit 365 to manage support and maintenance. Create your account to raise requests and follow progress.`,
+      content: detailTable([
+        { label: "Company", value: data.orgName },
+        { label: "Email", value: data.email },
+        { label: "Invite expires", value: longDate(data.expiresAt) },
+      ]),
+      cta: { label: "Accept invite", url: data.inviteUrl },
+      footerNote:
+        "If you weren't expecting this invite, you can safely ignore this email. The link is single-use and expires automatically.",
+      logoUrl: data.logoUrl,
+    }),
+  };
+}
+
+export type ClientRegisteredTeamData = {
+  orgName: string;
+  userName?: string | null;
+  email: string;
+  registeredAt: string;
+  portalUrl: string;
+  logoUrl?: string;
+};
+
+/** Sent to the Rabbit 365 team when a client completes portal registration. */
+export function clientRegisteredTeamEmail(data: ClientRegisteredTeamData): EmailContent {
+  return {
+    subject: `Client registered — ${data.orgName}`,
+    html: layout({
+      preheader: `${data.email} just joined the ${data.orgName} portal.`,
+      heading: "A client just registered",
+      intro: `<strong>${esc(data.userName || data.email)}</strong> created a portal account for <strong>${esc(data.orgName)}</strong>.`,
+      content: detailTable([
+        { label: "Company", value: data.orgName },
+        { label: "Name", value: data.userName },
+        { label: "Email", value: data.email },
+        { label: "Registered", value: longDate(data.registeredAt) },
+      ]),
+      cta: { label: "Open client in portal", url: data.portalUrl },
+      footerNote: "You can manage this client's sites, users and tickets from the admin portal.",
+      logoUrl: data.logoUrl,
+    }),
+  };
+}

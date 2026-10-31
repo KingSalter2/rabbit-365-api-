@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { Env } from "../env";
-import type { AdminUser, AdminRole, SessionUser } from "../types";
+import type { AdminUser, AdminRole, ClientRole, ClientSession, SessionUser } from "../types";
 import { authDb, db } from "./supabase";
 
 const ACCESS_COOKIE = "rb365_access";
@@ -63,6 +63,59 @@ export async function getSessionUser(c: Context<Env>): Promise<SessionUser | nul
   }
 
   return null;
+}
+
+type ClientMemberRow = {
+  id: string;
+  org_id: string;
+  email: string;
+  role: ClientRole;
+  status: string;
+  full_name: string | null;
+};
+
+type ClientOrgRow = {
+  id: string;
+  name: string;
+  status: "active" | "suspended" | "archived";
+  support_enabled: boolean;
+};
+
+/** Resolve the signed-in client user and their organisation. */
+export async function getClientUser(c: Context<Env>): Promise<ClientSession | null> {
+  const session = await getSessionUser(c);
+  if (!session) return null;
+
+  const client = db(c.env);
+  const { data: member } = await client
+    .from("client_members")
+    .select("id,org_id,email,role,status,full_name")
+    .eq("user_id", session.id)
+    .maybeSingle();
+
+  if (!member) return null;
+  const row = member as ClientMemberRow;
+  if (row.status !== "active") return null;
+
+  const { data: org } = await client
+    .from("client_orgs")
+    .select("id,name,status,support_enabled")
+    .eq("id", row.org_id)
+    .maybeSingle();
+  if (!org) return null;
+  const orgRow = org as ClientOrgRow;
+
+  return {
+    userId: session.id,
+    email: session.email ?? row.email,
+    memberId: row.id,
+    orgId: orgRow.id,
+    orgName: orgRow.name,
+    role: row.role,
+    fullName: row.full_name,
+    orgStatus: orgRow.status,
+    supportEnabled: orgRow.support_enabled,
+  };
 }
 
 type AdminRow = { id: string; email: string; role: AdminRole; full_name: string | null };

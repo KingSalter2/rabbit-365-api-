@@ -1,4 +1,4 @@
-import type { AdminUser, SessionUser } from "./types";
+import type { AdminUser, ClientSession, SessionUser } from "./types";
 
 export interface Bindings {
   SUPABASE_URL: string;
@@ -9,6 +9,7 @@ export interface Bindings {
   APP_URL?: string;
   ASSET_URL?: string;
   NOTIFY_EMAIL_TO?: string;
+  SUPPORT_NOTIFY_EMAILS?: string;
   EMAIL_FROM?: string;
   SUPERADMIN_EMAIL?: string;
   ENVIRONMENT?: string;
@@ -17,6 +18,7 @@ export interface Bindings {
 export interface Variables {
   user: SessionUser | null;
   admin: AdminUser | null;
+  client: ClientSession | null;
 }
 
 export interface Env {
