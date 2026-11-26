@@ -55,20 +55,19 @@ export function clearSessionCookies(c: Context<Env>) {
   deleteCookie(c, MFA_ACCESS_COOKIE, { path: "/" });
 }
 
-/** Store a short-lived, non-session token while an MFA challenge is pending. */
-export function setPendingMfaCookie(c: Context<Env>, accessToken: string) {
-  setCookie(c, MFA_ACCESS_COOKIE, accessToken, {
-    httpOnly: true,
-    secure: isSecure(c),
-    sameSite: "Lax",
-    path: "/",
-    maxAge: MFA_ACCESS_MAX_AGE,
-  });
+export type PendingMfa = { accessToken: string; refreshToken?: string };
+/** Store a short-lived pending MFA session while challenge is pending. */
+export function setPendingMfa(c: Context<Env>, session: { access_token: string; refresh_token?: string }) {
+  const value = btoa(JSON.stringify({ accessToken: session.access_token, refreshToken: session.refresh_token }));
+  setCookie(c, MFA_ACCESS_COOKIE, value, { httpOnly: true, secure: isSecure(c), sameSite: "Lax", path: "/", maxAge: MFA_ACCESS_MAX_AGE });
 }
-
-export function getPendingMfaToken(c: Context<Env>): string | null {
-  return getCookie(c, MFA_ACCESS_COOKIE) ?? null;
+export function setPendingMfaCookie(c: Context<Env>, accessToken: string) { setPendingMfa(c, { access_token: accessToken }); }
+export function getPendingMfa(c: Context<Env>): PendingMfa | null {
+  const raw = getCookie(c, MFA_ACCESS_COOKIE); if (!raw) return null;
+  try { const j = JSON.parse(atob(raw)) as PendingMfa; if (j?.accessToken) return j; } catch {}
+  return { accessToken: raw };
 }
+export function getPendingMfaToken(c: Context<Env>): string | null { return getPendingMfa(c)?.accessToken ?? null; }
 
 export function clearPendingMfaCookie(c: Context<Env>) {
   deleteCookie(c, MFA_ACCESS_COOKIE, { path: "/" });

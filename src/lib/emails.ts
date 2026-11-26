@@ -819,3 +819,18 @@ export function funeralOutreachEmail(data: FuneralOutreachEmailData): EmailConte
     }),
   };
 }
+
+
+export function mfaOtpEmail(data: { code: string; purpose: "login" | "verify"; logoUrl?: string }): EmailContent {
+  const purposeText = data.purpose === "login" ? "sign in to Rabbit 365 Admin" : "verify your email MFA method";
+  return {
+    subject: data.code + " is your Rabbit 365 verification code",
+    html: layout({
+      preheader: "Your Rabbit 365 verification code is " + data.code + ".",
+      heading: "Your verification code",
+      intro: "Use this code to " + purposeText + ". It expires in 10 minutes.",
+      content: '<div style="margin:0 0 24px;padding:24px;border:1px solid ' + COLOR.border + ';border-radius:14px;background:' + COLOR.panel + ';text-align:center"><div style="font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:' + COLOR.muted + ';margin-bottom:8px">One-time code</div><div style="font-size:40px;line-height:1;font-weight:800;letter-spacing:.18em;color:' + COLOR.ink + '">' + esc(data.code) + '</div></div><p style="margin:0;font-size:14px;line-height:22px;color:' + COLOR.muted + '">If you did not request this code, you can ignore this email.</p>',
+      logoUrl: data.logoUrl,
+    }),
+  };
+}

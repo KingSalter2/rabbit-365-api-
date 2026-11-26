@@ -3,19 +3,21 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { Env } from "../env";
 import { logActivity } from "../lib/audit";
-import { brandLogoUrl, passwordResetEmail } from "../lib/emails";
+import { brandLogoUrl, mfaOtpEmail, passwordResetEmail } from "../lib/emails";
 import { clientIp, fail, ok } from "../lib/http";
 import { sendLoggedEmail } from "../lib/notify";
+import { generateOtpCode, hashOtp } from "../lib/otp";
 import { allowRequest } from "../lib/ratelimit";
 import { verifyPassword } from "../lib/reauth";
 import {
   clearPendingMfaCookie,
   clearSessionCookies,
   getAdminUser,
+  getPendingMfa,
   getPendingMfaToken,
   getSessionUser,
   revokeCurrentSession,
-  setPendingMfaCookie,
+  setPendingMfa,
   setSessionCookies,
 } from "../lib/session";
 import { authDb, db, userAuthDb } from "../lib/supabase";
@@ -25,7 +27,10 @@ import {
   inviteCreateSchema,
   loginSchema,
   mfaChallengeSchema,
+  mfaEmailSendSchema,
+  mfaEmailVerifySchema,
   mfaEnrollSchema,
+  mfaPreferenceSchema,
   mfaVerifySchema,
   reauthSchema,
   registerSchema,
@@ -44,6 +49,33 @@ function passwordResetRedirect(c: Context<Env>, portal: "admin" | "client"): str
   return `${base}/reset-password?portal=${portal}`;
 }
 
+async function getAdminMfaMethod(c: Context<Env>, userId: string): Promise<"totp"|"email"> {
+  const { data } = await db(c.env).from("admin_users").select("mfa_method").eq("id", userId).maybeSingle();
+  return data?.mfa_method === "email" ? "email" : "totp";
+}
+function otpSecret(c: Context<Env>) { return c.env.SUPABASE_SERVICE_ROLE_KEY; }
+async function sendEmailOtp(c: Context<Env>, userId: string, email: string, purpose: "login"|"verify") {
+  const code = generateOtpCode();
+  const codeHash = await hashOtp(userId, purpose, code, otpSecret(c));
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const client = db(c.env);
+  await client.from("admin_email_otps").delete().eq("user_id", userId).eq("purpose", purpose).is("consumed_at", null);
+  const { error } = await client.from("admin_email_otps").insert({ user_id: userId, email, purpose, code_hash: codeHash, expires_at: expiresAt, max_attempts: 5 });
+  if (error) throw new Error(error.message);
+  const msg = mfaOtpEmail({ code, purpose, logoUrl: brandLogoUrl(c.env.ASSET_URL) });
+  await sendLoggedEmail(c.env, { to: email, subject: msg.subject, html: msg.html, template: `admin-mfa-otp-${purpose}`, storeBody: false });
+}
+async function verifyEmailOtp(c: Context<Env>, userId: string, purpose: "login"|"verify", code: string) {
+  const client = db(c.env);
+  const { data } = await client.from("admin_email_otps").select("id,code_hash,expires_at,attempts,max_attempts").eq("user_id", userId).eq("purpose", purpose).is("consumed_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!data) return { ok: false as const, message: "Verification code not found or expired." };
+  if (new Date(data.expires_at).getTime() < Date.now()) return { ok: false as const, message: "Verification code expired. Request a new code." };
+  if ((data.attempts ?? 0) >= (data.max_attempts ?? 5)) return { ok: false as const, message: "Too many invalid attempts. Request a new code." };
+  const expected = await hashOtp(userId, purpose, code, otpSecret(c));
+  if (expected !== data.code_hash) { await client.from("admin_email_otps").update({ attempts: (data.attempts ?? 0) + 1 }).eq("id", data.id); return { ok: false as const, message: "Invalid verification code." }; }
+  await client.from("admin_email_otps").update({ consumed_at: new Date().toISOString() }).eq("id", data.id);
+  return { ok: true as const };
+}
 async function verifyMfaAdmin(c: Context<Env>) {
   const me = c.get("admin");
   if (!me) return null;
@@ -101,27 +133,23 @@ auth.post("/login", zValidator("json", loginSchema), async (c) => {
         .upsert({ id: data.user.id, email: data.user.email, role: "superadmin" });
     }
 
-    const { data: factors } = await authClient.auth.admin.mfa.listFactors({
-      userId: data.user.id,
-    });
-    const verifiedFactor = factors?.factors.find(
-      (factor) => factor.factor_type === "totp" && factor.status === "verified",
-    );
-
-    if (verifiedFactor) {
-      const userClient = userAuthDb(c.env, data.session.access_token);
-      const challenge = await userClient.auth.mfa.challenge({ factorId: verifiedFactor.id });
-      if (challenge.error || !challenge.data) {
-        return fail(c, "Could not start multi-factor verification. Please try again.", 500);
+    const mfaMethod = await getAdminMfaMethod(c, data.user.id);
+    if (mfaMethod === "totp") {
+      const { data: factors } = await authClient.auth.admin.mfa.listFactors({ userId: data.user.id });
+      const verifiedFactor = factors?.factors.find((factor) => factor.factor_type === "totp" && factor.status === "verified");
+      if (verifiedFactor) {
+        const userClient = userAuthDb(c.env, data.session.access_token);
+        const challenge = await userClient.auth.mfa.challenge({ factorId: verifiedFactor.id });
+        if (challenge.error || !challenge.data) return fail(c, "Could not start multi-factor verification. Please try again.", 500);
+        clearSessionCookies(c);
+        setPendingMfa(c, data.session);
+        return ok(c, { mfaRequired: true, method: "totp", factorId: verifiedFactor.id, challengeId: challenge.data.id });
       }
-
+    } else {
       clearSessionCookies(c);
-      setPendingMfaCookie(c, data.session.access_token);
-      return ok(c, {
-        mfaRequired: true,
-        factorId: verifiedFactor.id,
-        challengeId: challenge.data.id,
-      });
+      setPendingMfa(c, data.session);
+      await sendEmailOtp(c, data.user.id, data.user.email ?? body.email, "login");
+      return ok(c, { mfaRequired: true, method: "email" });
     }
 
     await client
@@ -135,48 +163,58 @@ auth.post("/login", zValidator("json", loginSchema), async (c) => {
   return ok(c, { user: { id: data.user.id, email: data.user.email } });
 });
 
-// Public: complete a pending multi-factor login challenge.
+// Public: complete a pending TOTP multi-factor login challenge.
 auth.post("/login/mfa", zValidator("json", mfaVerifySchema), async (c) => {
   const body = c.req.valid("json");
   const ip = clientIp(c) ?? "unknown";
-  if (!(await allowRequest(c.env.AUTH_RATE_LIMITER, `mfa:${ip}`))) {
-    return fail(c, "Too many verification attempts. Please try again shortly.", 429);
-  }
-
+  if (!(await allowRequest(c.env.AUTH_RATE_LIMITER, `mfa:${ip}`))) return fail(c, "Too many verification attempts. Please try again shortly.", 429);
   const pending = getPendingMfaToken(c);
-  if (!pending) {
-    return fail(c, "Your verification session expired. Please sign in again.", 401);
-  }
-
+  if (!pending) return fail(c, "Your verification session expired. Please sign in again.", 401);
   const userClient = userAuthDb(c.env, pending);
-  const { data, error } = await userClient.auth.mfa.verify({
-    factorId: body.factorId,
-    challengeId: body.challengeId,
-    code: body.code,
-  });
-  if (error || !data.access_token) {
-    return fail(c, "Invalid or expired authentication code", 401);
-  }
-
-  setSessionCookies(c, {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-  });
+  const { data, error } = await userClient.auth.mfa.verify({ factorId: body.factorId, challengeId: body.challengeId, code: body.code });
+  if (error || !data.access_token) return fail(c, "Invalid or expired authentication code", 401);
+  setSessionCookies(c, { access_token: data.access_token, refresh_token: data.refresh_token });
   clearPendingMfaCookie(c);
-
-  const { data: admin } = await db(c.env)
-    .from("admin_users")
-    .select("id")
-    .eq("id", data.user.id)
-    .maybeSingle();
-  if (admin) {
-    await db(c.env)
-      .from("admin_users")
-      .update({ last_login_at: new Date().toISOString() })
-      .eq("id", data.user.id);
-  }
-
+  await db(c.env).from("admin_users").update({ last_login_at: new Date().toISOString() }).eq("id", data.user.id);
   return ok(c, { user: { id: data.user.id, email: data.user.email ?? null } });
+});
+
+// Public: send/resend email OTP for pending admin login.
+auth.post("/login/mfa/email/send", async (c) => {
+  const ip = clientIp(c) ?? "unknown";
+  if (!(await allowRequest(c.env.AUTH_RATE_LIMITER, `mfa-email-send:${ip}`))) return fail(c, "Too many requests. Please try again shortly.", 429);
+  const pending = getPendingMfaToken(c);
+  if (!pending) return fail(c, "Your verification session expired. Please sign in again.", 401);
+  const { data: userData, error } = await authDb(c.env).auth.getUser(pending);
+  if (error || !userData.user?.email) return fail(c, "Your verification session expired. Please sign in again.", 401);
+  await sendEmailOtp(c, userData.user.id, userData.user.email, "login");
+  return ok(c, { sent: true });
+});
+
+// Public: verify email OTP for pending admin login.
+auth.post("/login/mfa/email/verify", zValidator("json", mfaEmailVerifySchema), async (c) => {
+  const body = c.req.valid("json");
+  const ip = clientIp(c) ?? "unknown";
+  if (!(await allowRequest(c.env.AUTH_RATE_LIMITER, `mfa-email-verify:${ip}`))) return fail(c, "Too many verification attempts. Please try again shortly.", 429);
+  const pending = getPendingMfaToken(c);
+  if (!pending) return fail(c, "Your verification session expired. Please sign in again.", 401);
+  const authClient = authDb(c.env);
+  const { data: userData, error } = await authClient.auth.getUser(pending);
+  if (error || !userData.user?.email) return fail(c, "Your verification session expired. Please sign in again.", 401);
+  const result = await verifyEmailOtp(c, userData.user.id, "login", body.code);
+  if (!result.ok) return fail(c, result.message, 401);
+  const pendingMfa = getPendingMfa(c);
+  if (!pendingMfa) return fail(c, "Your verification session expired. Please sign in again.", 401);
+  let accessToken = pendingMfa.accessToken;
+  let refreshToken = pendingMfa.refreshToken;
+  if (refreshToken) {
+    const refreshed = await authClient.auth.refreshSession({ refresh_token: refreshToken });
+    if (refreshed.data.session) { accessToken = refreshed.data.session.access_token; refreshToken = refreshed.data.session.refresh_token; }
+  }
+  if (refreshToken) setSessionCookies(c, { access_token: accessToken, refresh_token: refreshToken });
+  clearPendingMfaCookie(c);
+  await db(c.env).from("admin_users").update({ last_login_at: new Date().toISOString() }).eq("id", userData.user.id);
+  return ok(c, { user: { id: userData.user.id, email: userData.user.email } });
 });
 
 // Public: register using an invite code.
@@ -389,9 +427,11 @@ auth.get("/mfa", requireAdmin, async (c) => {
   if (!me) return fail(c, "Unauthorized", 401);
   const user = c.get("user") ?? (await getSessionUser(c));
   const factors = await verifyMfaAdmin(c);
+  const method = await getAdminMfaMethod(c, me.id);
   return ok(c, {
     aal: user?.aal ?? "aal1",
     required: me.role === "superadmin",
+    method,
     factors: (factors ?? []).map((factor) => ({
       id: factor.id,
       friendlyName: factor.friendly_name ?? null,
@@ -400,6 +440,36 @@ auth.get("/mfa", requireAdmin, async (c) => {
       createdAt: factor.created_at,
     })),
   });
+});
+
+auth.put("/mfa/preference", requireAdmin, zValidator("json", mfaPreferenceSchema), async (c) => {
+  const me = c.get("admin"); if (!me) return fail(c, "Unauthorized", 401);
+  const body = c.req.valid("json");
+  if (body.method === "totp") {
+    const factors = await verifyMfaAdmin(c);
+    const hasTotp = (factors ?? []).some((f) => f.factor_type === "totp" && f.status === "verified");
+    if (!hasTotp) return fail(c, "Set up and verify an authenticator app before selecting TOTP.", 400);
+  }
+  const { error } = await db(c.env).from("admin_users").update({ mfa_method: body.method }).eq("id", me.id);
+  if (error) return fail(c, error.message, 500);
+  await logActivity(c, me, { action: "auth.mfa_preference", entity: "admin_user", entityId: me.id, metadata: { method: body.method } });
+  return ok(c, { method: body.method });
+});
+
+auth.post("/mfa/email/send", requireAdmin, zValidator("json", mfaEmailSendSchema), async (c) => {
+  const me = c.get("admin"); if (!me) return fail(c, "Unauthorized", 401);
+  const ip = clientIp(c) ?? "unknown";
+  if (!(await allowRequest(c.env.AUTH_RATE_LIMITER, `mfa-email-send:${ip}:${me.id}`))) return fail(c, "Too many requests. Please try again shortly.", 429);
+  await sendEmailOtp(c, me.id, me.email, c.req.valid("json").purpose);
+  return ok(c, { sent: true });
+});
+
+auth.post("/mfa/email/verify", requireAdmin, zValidator("json", mfaEmailVerifySchema), async (c) => {
+  const me = c.get("admin"); if (!me) return fail(c, "Unauthorized", 401);
+  const body = c.req.valid("json");
+  const result = await verifyEmailOtp(c, me.id, body.purpose, body.code);
+  if (!result.ok) return fail(c, result.message, 401);
+  return ok(c, { verified: true, method: await getAdminMfaMethod(c, me.id) });
 });
 
 // Admin: start TOTP enrolment.

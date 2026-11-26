@@ -153,11 +153,17 @@ export const mfaChallengeSchema = z.object({
   factorId: z.string().uuid(),
 });
 
+export const mfaMethodSchema = z.enum(["totp","email"]);
+
 export const mfaVerifySchema = z.object({
   factorId: z.string().uuid(),
   challengeId: z.string().uuid(),
   code: z.string().trim().min(6).max(10),
 });
+
+export const mfaPreferenceSchema = z.object({ method: mfaMethodSchema });
+export const mfaEmailSendSchema = z.object({ purpose: z.enum(["login","verify"]).default("verify") });
+export const mfaEmailVerifySchema = z.object({ purpose: z.enum(["login","verify"]).default("verify"), code: z.string().trim().regex(/^\d{6}$/) });
 
 /* ------------------------------------------------------------------ */
 /* Client support                                                      */

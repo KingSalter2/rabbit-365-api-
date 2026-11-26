@@ -34,9 +34,10 @@ webhooks.post("/resend", async (c) => {
 
     let event: ResendEvent;
     try {
-      event = new Webhook(secret).verify(payload, headers) as unknown as ResendEvent;
+      new Webhook(secret).verify(payload, headers);
+      event = JSON.parse(payload) as ResendEvent;
     } catch {
-      return c.json({ ok: false, error: "Invalid signature" }, 400);
+      return c.json({ ok: false, error: "Invalid signature or payload" }, 400);
     }
 
     const type = event.type ?? "";
