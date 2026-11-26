@@ -6,6 +6,7 @@ import {
   leadConfirmationEmail,
   leadNotificationEmail,
   passwordResetEmail,
+  mfaOtpEmail,
   quotationAcceptanceClientEmail,
   quotationAcceptedTeamEmail,
   quotationProgressEmail,
@@ -36,7 +37,8 @@ export type SampleEmailKey =
   | "support-status"
   | "support-reminder"
   | "support-auto-closed"
-  | "funeral-outreach";
+  | "funeral-outreach"
+  | "mfa-otp";
 
 export type SampleEmailMeta = {
   key: SampleEmailKey;
@@ -89,6 +91,11 @@ export const SAMPLE_EMAILS: SampleEmailMeta[] = [
     key: "funeral-outreach",
     label: "Funeral outreach (manual send)",
     description: "Editable outreach template for funeral parlour website services.",
+  },
+  {
+    key: "mfa-otp",
+    label: "Admin MFA code (OTP)",
+    description: "6-digit one-time code sent when an admin signs in with Email OTP MFA.",
   },
   {
     key: "support-ticket-client",
@@ -244,6 +251,8 @@ export function renderSampleEmail(
           "your longstanding presence in the funeral services industry and your contribution to the community",
         logoUrl,
       });
+    case "mfa-otp":
+      return mfaOtpEmail({ code: "482913", purpose: "login", logoUrl });
     case "support-ticket-client":
       return supportTicketCreatedClient(supportSample(base, logoUrl));
     case "support-ticket-team":

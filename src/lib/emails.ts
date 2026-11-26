@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Central email templates for Rabbit 365.
  *
  * All transactional email HTML lives here. Resend is only the transport
@@ -208,13 +208,13 @@ function layout(input: LayoutInput): string {
   </style>
 </head>
 <body style="margin:0;padding:0;background:${COLOR.bg};font-family:${FONT_STACK};-webkit-font-smoothing:antialiased">
-  <div style="display:none;font-size:1px;color:${COLOR.bg};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden">${esc(
+  <div style="display:none;font-size:1px;color:${COLOR.bg};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">${esc(
     input.preheader,
-  )}</div>
+  )}${"&nbsp;&zwnj;".repeat(40)}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLOR.bg}">
     <tr>
       <td class="rb-outer" align="center" style="padding:40px 20px">
-        <table role="presentation" class="rb-card" width="800" cellpadding="0" cellspacing="0" style="width:100%;max-width:800px;background:#ffffff;border:1px solid ${COLOR.border};border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.05)">
+        <table role="presentation" class="rb-card" width="1200" cellpadding="0" cellspacing="0" style="width:100%;max-width:1200px;background:#ffffff;border:1px solid ${COLOR.border};border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.05)">
           <tr><td style="height:4px;line-height:4px;font-size:0;background:${COLOR.mint}">&nbsp;</td></tr>
           <tr>
             <td class="rb-header" style="padding:32px 56px 24px;border-bottom:1px solid ${COLOR.border}">
@@ -249,6 +249,7 @@ function layout(input: LayoutInput): string {
               <p style="margin:18px 0 0;padding-top:16px;border-top:1px solid rgba(255,255,255,.12);font-size:12px;line-height:18px;color:#64748B">
                 &copy; ${year} ${BRAND.name}. All rights reserved.
               </p>
+              <p style="margin:12px 0 0;font-size:11px;line-height:17px;color:#64748B"><strong style="color:#94A3B8">Disclaimer:</strong> This message and its attachments is intended for the exclusive use of the named recipients hereof and may contain information that is privileged or confidential or otherwise restricted from disclosure wider than the named recipients. If you are not the named recipient, you are not authorized to read, use, transmit, print, retain, copy or disseminate this message or any part thereof, or the attachments thereto. If you have received this message in error, please notify the sender immediately via e-mail and discard (de-identify) any paper copies and delete all electronic files of the message.</p>
             </td>
           </tr>
         </table>

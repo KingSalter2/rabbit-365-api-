@@ -1,4 +1,4 @@
-import { zValidator } from "@hono/zod-validator";
+﻿import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { Env } from "../env";
@@ -479,11 +479,15 @@ auth.post("/mfa/enroll", requireAdmin, zValidator("json", mfaEnrollSchema), asyn
 
   const body = c.req.valid("json");
   const userClient = userAuthDb(c.env, user.accessToken);
+  const friendlyName = body.friendlyName ?? "Authenticator app";
+  const { data: factors } = await userClient.auth.mfa.listFactors();
+  const existing = [...(factors?.all ?? [])].find((f) => f.friendly_name === friendlyName && f.factor_type === "totp" && f.status !== "verified");
+  if (existing) await userClient.auth.mfa.unenroll({ factorId: existing.id });
   const { data, error } = await userClient.auth.mfa.enroll({
     factorType: "totp",
-    friendlyName: body.friendlyName ?? "Authenticator app",
+    friendlyName,
   });
-  if (error) return fail(c, error.message, 400);
+  if (error) return fail(c, error.message.includes("friendly name") ? "An authenticator with this name already exists. Remove it in Security first, then try again." : error.message, 400);
   if (!data.totp) return fail(c, "Could not create an authenticator secret", 400);
 
   return ok(c, {

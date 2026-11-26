@@ -1,8 +1,8 @@
-import { createMiddleware } from "hono/factory";
+﻿import { createMiddleware } from "hono/factory";
 import type { Env } from "../env";
 import { fail } from "../lib/http";
+import { db } from "../lib/supabase";
 import { getAdminUser, getClientUser, getSessionUser } from "../lib/session";
-
 export const withUser = createMiddleware<Env>(async (c, next) => {
   c.set("user", await getSessionUser(c));
   await next();
@@ -28,8 +28,11 @@ export const requireSuperadmin = createMiddleware<Env>(async (c, next) => {
   if (admin.role !== "superadmin") return fail(c, "Forbidden", 403);
 
   const user = c.get("user") ?? (await getSessionUser(c));
-  if (!user || user.aal !== "aal2") {
-    return fail(c, "Multi-factor authentication required", 403, { code: "mfa_required" });
+  if (!user) return fail(c, "Unauthorized", 401);
+  if (user.aal !== "aal2") {
+    const { data } = await db(c.env).from("admin_users").select("mfa_method").eq("id", admin.id).maybeSingle();
+    const method = data?.mfa_method === "email" ? "email" : "totp";
+    if (method !== "email") return fail(c, "Multi-factor authentication required", 403, { code: "mfa_required" });
   }
 
   c.set("admin", admin);
