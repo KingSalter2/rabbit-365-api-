@@ -40,3 +40,19 @@ export function authDb(env: Bindings): SupabaseClient {
   authCachedKey = key;
   return authCached;
 }
+
+/**
+ * Request-scoped Supabase Auth client that acts as the signed-in user. Used
+ * for MFA enrolment/challenge/verification, which GoTrue only permits for the
+ * user themselves.
+ */
+export function userAuthDb(env: Bindings, accessToken: string): SupabaseClient {
+  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+}

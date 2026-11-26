@@ -14,11 +14,12 @@
     "@hono/zod-validator": "^0.4.3",
     "@supabase/supabase-js": "^2.49.1",
     "hono": "^4.7.5",
+    "svix": "^2.11.1",
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250303.0",
+    "@cloudflare/workers-types": "^5.20261101.1",
     "typescript": "^5.8.2",
-    "wrangler": "^3.114.0"
+    "wrangler": "^4.36.0"
   }
 }

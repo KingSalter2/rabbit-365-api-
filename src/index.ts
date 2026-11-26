@@ -14,8 +14,27 @@ import leads from "./routes/leads";
 import quotations from "./routes/quotations";
 import settings from "./routes/settings";
 import supportRoutes from "./routes/support";
+import webhooks from "./routes/webhooks";
 
 const app = new Hono<Env>();
+
+app.use("*", async (c, next) => {
+  try {
+    await next();
+  } finally {
+    c.header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+    c.header("Cross-Origin-Opener-Policy", "same-origin");
+    c.header("Referrer-Policy", "no-referrer");
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("X-Frame-Options", "DENY");
+    c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+    c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    const path = new URL(c.req.url).pathname;
+    if (path.startsWith("/api/") && !path.startsWith("/api/assets/")) {
+      c.header("Cache-Control", "no-store");
+    }
+  }
+});
 
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
@@ -36,6 +55,7 @@ app.route("/api/settings", settings);
 app.route("/api/emails", emails);
 app.route("/api/client", clientRoutes);
 app.route("/api/support", supportRoutes);
+app.route("/api/webhooks", webhooks);
 
 app.route("/dev", dev);
 

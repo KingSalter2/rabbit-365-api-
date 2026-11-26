@@ -1,11 +1,20 @@
 const RESEND_URL = "https://api.resend.com/emails";
 
+export type EmailAttachment = {
+  content?: string;
+  filename?: string;
+  path?: string;
+  content_id?: string;
+  content_type?: string;
+};
+
 export type SendEmailInput = {
   to: string | string[];
   subject: string;
   html?: string;
   text?: string;
   replyTo?: string;
+  attachments?: EmailAttachment[];
 };
 
 export type SendEmailResult = { id: string } | null;
@@ -34,6 +43,7 @@ export async function sendEmail(
       html: input.html,
       text: input.text,
       reply_to: input.replyTo,
+      attachments: input.attachments,
     }),
   });
 

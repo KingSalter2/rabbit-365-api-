@@ -47,8 +47,13 @@ const FONT_STACK =
  * sent from local dev still load a reachable logo for the recipient.
  */
 export function brandLogoUrl(baseUrl?: string): string {
-  const base = (baseUrl || BRAND.site).replace(/\/$/, "");
+  const raw = (baseUrl || "").replace(/\/$/, "");
+  const base = raw && !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/i.test(raw) ? raw : BRAND.site;
   return `${base}/api/assets/logo.png`;
+}
+
+export function brandLogoAsset(baseUrl?: string): { url: string; cid: string; filename: string; contentType: string } {
+  return { url: brandLogoUrl(baseUrl), cid: "rabbit365-logo", filename: "rabbit365-logo.png", contentType: "image/png" };
 }
 
 /** Escape user-provided values before embedding them in HTML. */
@@ -118,7 +123,7 @@ function banner(text: string): string {
 }
 
 function sectionHeading(text: string): string {
-  return `<h2 style="margin:24px 0 12px;font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:${COLOR.muted}">${esc(text)}</h2>`;
+  return `<h2 style="margin:28px 0 14px;font-size:12px;letter-spacing:.8px;text-transform:uppercase;font-weight:700;color:${COLOR.muted}">${esc(text)}</h2>`;
 }
 
 function bankingBlock(banking: BankingDetails, reference?: string): string {
@@ -162,17 +167,20 @@ type LayoutInput = {
   cta?: { label: string; url: string };
   footerNote?: string;
   logoUrl?: string;
+  logoCid?: string;
 };
+
+export const EMAIL_LOGO_CID = "rabbit365-logo";
 
 function layout(input: LayoutInput): string {
   const year = new Date().getFullYear();
-  const logoUrl = input.logoUrl || BRAND.logo;
+  const logoUrl = input.logoCid ? `cid:${input.logoCid}` : input.logoUrl || BRAND.logo;
   const intro = input.intro
-    ? `<p style="margin:0 0 22px;font-size:15px;line-height:24px;color:${COLOR.body}">${input.intro}</p>`
+    ? `<p class="rb-text" style="margin:0 0 24px;font-size:16px;line-height:28px;color:${COLOR.body}">${input.intro}</p>`
     : "";
   const cta = input.cta ? button(input.cta.label, input.cta.url) : "";
   const footerNote = input.footerNote
-    ? `<p style="margin:24px 0 0;font-size:13px;line-height:21px;color:${COLOR.muted}">${input.footerNote}</p>`
+    ? `<p style="margin:28px 0 0;padding-top:24px;border-top:1px solid ${COLOR.border};font-size:14px;line-height:24px;color:${COLOR.muted}">${input.footerNote}</p>`
     : "";
 
   return `<!DOCTYPE html>
@@ -184,13 +192,18 @@ function layout(input: LayoutInput): string {
   <meta name="color-scheme" content="light only" />
   <title>${esc(input.heading)}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
     body { margin:0; padding:0; width:100% !important; background:${COLOR.bg}; }
     a { text-decoration:none; }
     table { border-collapse:collapse; }
-    @media (max-width:600px) {
-      .rb-card { width:100% !important; border-radius:0 !important; }
-      .rb-pad { padding-left:22px !important; padding-right:22px !important; }
+    @media (max-width:840px) {
+      .rb-outer { padding:16px 10px !important; }
+      .rb-card { width:100% !important; max-width:100% !important; border-radius:14px !important; }
+      .rb-header { padding:24px 24px 18px !important; }
+      .rb-body { padding:28px 24px 30px !important; }
+      .rb-footer { padding:26px 24px !important; }
+      .rb-h1 { font-size:26px !important; line-height:34px !important; }
+      .rb-text { font-size:15px !important; line-height:27px !important; }
     }
   </style>
 </head>
@@ -200,17 +213,17 @@ function layout(input: LayoutInput): string {
   )}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLOR.bg}">
     <tr>
-      <td align="center" style="padding:36px 16px">
-        <table role="presentation" class="rb-card" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(15,23,42,.06)">
-          <tr><td style="height:5px;line-height:5px;font-size:0;background:${COLOR.mint}">&nbsp;</td></tr>
+      <td class="rb-outer" align="center" style="padding:40px 20px">
+        <table role="presentation" class="rb-card" width="800" cellpadding="0" cellspacing="0" style="width:100%;max-width:800px;background:#ffffff;border:1px solid ${COLOR.border};border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.05)">
+          <tr><td style="height:4px;line-height:4px;font-size:0;background:${COLOR.mint}">&nbsp;</td></tr>
           <tr>
-            <td class="rb-pad" style="padding:28px 36px 20px;border-bottom:1px solid ${COLOR.border}">
-              <img src="${logoUrl}" alt="${BRAND.name}" height="40" style="height:40px;display:block;border:0;outline:none;text-decoration:none" />
+            <td class="rb-header" style="padding:32px 56px 24px;border-bottom:1px solid ${COLOR.border}">
+              <img src="${logoUrl}" alt="${BRAND.name}" width="168" height="42" style="display:block;width:auto;max-width:180px;height:42px;border:0;outline:none;text-decoration:none" />
             </td>
           </tr>
           <tr>
-            <td class="rb-pad" style="padding:34px 36px 36px">
-              <h1 style="margin:0 0 14px;font-size:23px;line-height:31px;font-weight:800;color:${COLOR.ink}">${esc(
+            <td class="rb-body" style="padding:44px 56px 48px">
+              <h1 class="rb-h1" style="margin:0 0 20px;font-size:30px;line-height:38px;font-weight:800;letter-spacing:-0.4px;color:${COLOR.ink}">${esc(
                 input.heading,
               )}</h1>
               ${intro}
@@ -220,7 +233,7 @@ function layout(input: LayoutInput): string {
             </td>
           </tr>
           <tr>
-            <td class="rb-pad" style="background:${COLOR.charcoal};padding:30px 36px">
+            <td class="rb-footer" style="background:${COLOR.charcoal};padding:32px 56px">
               <p style="margin:0 0 4px;font-size:16px;font-weight:800;color:#ffffff">${BRAND.name}</p>
               <p style="margin:0 0 16px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:${COLOR.mint}">${BRAND.tagline}</p>
               <p style="margin:0 0 6px;font-size:13px;line-height:20px;color:${COLOR.footerText}">
@@ -282,7 +295,7 @@ export function leadNotificationEmail(
     detailTable(rows) + (lead.message ? callout("Message", lead.message) : "");
 
   return {
-    subject: `New enquiry: ${lead.category ?? "general"} — ${lead.name}`,
+    subject: `New enquiry: ${lead.category ?? "general"}  -  ${lead.name}`,
     html: layout({
       preheader: `New website enquiry from ${lead.name}.`,
       heading: "New website enquiry",
@@ -313,9 +326,9 @@ export function leadConfirmationEmail(
   ];
 
   return {
-    subject: "We've received your enquiry — Rabbit 365",
+    subject: "We've received your enquiry  -  Rabbit 365",
     html: layout({
-      preheader: "Thanks for reaching out — a member of our team will be in touch shortly.",
+      preheader: "Thanks for reaching out  -  a member of our team will be in touch shortly.",
       heading: `Thanks, ${firstName}!`,
       intro:
         "We've received your message and a member of our team will get back to you within one business day. For your records, here's a copy of what you sent us:",
@@ -355,11 +368,11 @@ export function quotationAcceptedTeamEmail(data: QuotationAcceptedTeamData): Ema
   ];
 
   return {
-    subject: `Quotation accepted: ${data.quoteNumber} — ${data.title}`,
+    subject: `Quotation accepted: ${data.quoteNumber}  -  ${data.title}`,
     html: layout({
       preheader: `${data.acceptedByName} accepted ${data.quoteNumber}.`,
       heading: "Quotation accepted",
-      intro: "Good news — a client has accepted a quotation. Reach out to confirm the next steps.",
+      intro: "Good news  -  a client has accepted a quotation. Reach out to confirm the next steps.",
       content: detailTable(rows),
       cta: data.portalUrl ? { label: "Open in portal", url: data.portalUrl } : undefined,
       logoUrl: data.logoUrl,
@@ -389,7 +402,7 @@ export function quotationAcceptanceClientEmail(data: QuotationClientConfirmData)
   ];
 
   return {
-    subject: `Thank you — quotation ${data.quoteNumber} accepted`,
+    subject: `Thank you  -  quotation ${data.quoteNumber} accepted`,
     html: layout({
       preheader: `We've received your acceptance of ${data.quoteNumber}.`,
       heading: `Thank you, ${data.clientName}!`,
@@ -466,7 +479,7 @@ export type QuotationProgressEmailData = {
 /** Sent to the client whenever their project progress is updated. */
 export function quotationProgressEmail(data: QuotationProgressEmailData): EmailContent {
   return {
-    subject: `Project update: ${data.quoteNumber} — ${data.statusLabel}`,
+    subject: `Project update: ${data.quoteNumber}  -  ${data.statusLabel}`,
     html: layout({
       preheader: `${data.title} is now: ${data.statusLabel}.`,
       heading: `Update on ${data.quoteNumber}`,
@@ -500,7 +513,7 @@ export type SupportTicketEmailData = {
   status?: string;
   /** Name of the person who wrote the message (agent for client emails, client for team emails). */
   authorName?: string;
-  /** Name of the client being greeted — never the agent's name. */
+  /** Name of the client being greeted  -  never the agent's name. */
   clientName?: string;
   message?: string;
   /** True when the reply also resolved the ticket (reply & resolve). */
@@ -513,7 +526,7 @@ function supportTicketUrl(appUrl: string, ticketId: string): string {
 }
 
 function supportDetails(data: SupportTicketEmailData): string {
-  const site = [data.siteLabel, data.siteUrl].filter(Boolean).join(" — ");
+  const site = [data.siteLabel, data.siteUrl].filter(Boolean).join("  -  ");
   return detailTable([
     { label: "Ticket", value: data.number },
     { label: "Subject", value: data.subject },
@@ -527,7 +540,7 @@ function supportDetails(data: SupportTicketEmailData): string {
 
 export function supportTicketCreatedClient(data: SupportTicketEmailData): EmailContent {
   return {
-    subject: `We've received your request — ${data.number}`,
+    subject: `We've received your request  -  ${data.number}`,
     html: layout({
       preheader: `Ticket ${data.number} has been created.`,
       heading: "We've got your request",
@@ -544,7 +557,7 @@ export function supportTicketCreatedClient(data: SupportTicketEmailData): EmailC
 
 export function supportTicketCreatedTeam(data: SupportTicketEmailData): EmailContent {
   return {
-    subject: `New support ticket ${data.number} — ${data.orgName}`,
+    subject: `New support ticket ${data.number}  -  ${data.orgName}`,
     html: layout({
       preheader: `${data.orgName} raised ${data.number}.`,
       heading: "New support ticket",
@@ -560,7 +573,7 @@ export function supportTicketCreatedTeam(data: SupportTicketEmailData): EmailCon
 
 export function supportTicketReplyClient(data: SupportTicketEmailData): EmailContent {
   return {
-    subject: `New reply on ${data.number} — ${data.subject}`,
+    subject: `New reply on ${data.number}  -  ${data.subject}`,
     html: layout({
       preheader: `The team replied to ${data.number}.`,
       heading: "You have a new reply",
@@ -587,7 +600,7 @@ export function supportTicketReplyClient(data: SupportTicketEmailData): EmailCon
 
 export function supportTicketReplyTeam(data: SupportTicketEmailData): EmailContent {
   return {
-    subject: `Client reply on ${data.number} — ${data.orgName}`,
+    subject: `Client reply on ${data.number}  -  ${data.orgName}`,
     html: layout({
       preheader: `${data.orgName} replied to ${data.number}.`,
       heading: "New client reply",
@@ -631,7 +644,7 @@ export function supportTicketReminderClient(data: SupportTicketEmailData): Email
           "If we don't hear back within 7 days, we'll close this ticket. You can reply anytime to reopen it.",
         ),
       cta: { label: "View and reply", url: supportTicketUrl(data.appUrl, data.ticketId) },
-      footerNote: "If everything is resolved, no action is needed — we'll close the ticket automatically.",
+      footerNote: "If everything is resolved, no action is needed  -  we'll close the ticket automatically.",
       logoUrl: data.logoUrl,
     }),
   };
@@ -699,6 +712,34 @@ export function clientInviteEmail(data: ClientInviteEmailData): EmailContent {
   };
 }
 
+export type PasswordResetEmailData = {
+  resetUrl: string;
+  portal: "admin" | "client";
+  email?: string;
+  logoUrl?: string;
+};
+
+/** Sent when an admin or client requests a password reset. */
+export function passwordResetEmail(data: PasswordResetEmailData): EmailContent {
+  const account = data.portal === "admin" ? "admin portal" : "support portal";
+  return {
+    subject: "Reset your Rabbit 365 password",
+    html: layout({
+      preheader: `Reset the password for your Rabbit 365 ${account}.`,
+      heading: "Reset your password",
+      intro: `We received a request to reset the password for your Rabbit 365 <strong>${account}</strong>. Click the button below to choose a new password.`,
+      content: detailTable([
+        { label: "Account", value: data.email },
+        { label: "Portal", value: data.portal === "admin" ? "Admin portal" : "Client support portal" },
+      ]),
+      cta: { label: "Choose a new password", url: data.resetUrl },
+      footerNote:
+        "This link expires automatically and can only be used once. If you didn't request a password reset, you can safely ignore this email  -  your password will not change.",
+      logoUrl: data.logoUrl,
+    }),
+  };
+}
+
 export type ClientRegisteredTeamData = {
   orgName: string;
   userName?: string | null;
@@ -711,7 +752,7 @@ export type ClientRegisteredTeamData = {
 /** Sent to the Rabbit 365 team when a client completes portal registration. */
 export function clientRegisteredTeamEmail(data: ClientRegisteredTeamData): EmailContent {
   return {
-    subject: `Client registered — ${data.orgName}`,
+    subject: `Client registered  -  ${data.orgName}`,
     html: layout({
       preheader: `${data.email} just joined the ${data.orgName} portal.`,
       heading: "A client just registered",
@@ -724,6 +765,56 @@ export function clientRegisteredTeamEmail(data: ClientRegisteredTeamData): Email
       ]),
       cta: { label: "Open client in portal", url: data.portalUrl },
       footerNote: "You can manage this client's sites, users and tickets from the admin portal.",
+      logoUrl: data.logoUrl,
+    }),
+  };
+}
+
+export type FuneralOutreachEmailData = {
+  businessName: string;
+  observation: string;
+  logoUrl?: string;
+};
+
+/** Outreach email for funeral parlour website services. */
+export function funeralOutreachEmail(data: FuneralOutreachEmailData): EmailContent {
+  const businessName = data.businessName.trim() || "[Business Name]";
+  const observation = data.observation.trim() || "[Your observation about their business]";
+  const intro =
+    `My name is Sam, representing <strong>Rabbit 365</strong>, a web design and digital solutions company based in South Africa.` +
+    `<br /><br />We came across ${esc(businessName)} and were impressed by ${esc(observation)}.` +
+    `<br /><br />We would like to introduce our services and explore an opportunity to help strengthen your business's online presence.` +
+    `<br /><br />We build custom websites, web applications, and mobile applications using industry-standard technologies. Our solutions are professional, mobile-friendly, and designed to help businesses showcase their services, reach more customers, and generate enquiries.`;
+
+  const features = [
+    "Professional website design tailored to your brand.",
+    "Funeral plans, packages and benefits display.",
+    "Funeral services and company information.",
+    "Online quotation and enquiry forms.",
+    "WhatsApp integration for direct customer communication.",
+    "Funeral notices and announcements.",
+    "Online registration functionality.",
+    "Google Maps and social media integration.",
+    "Frequently asked questions and contact information.",
+  ];
+  const content =
+    sectionHeading("Some of the features we can offer include") +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;border:1px solid ${COLOR.border};border-radius:14px;background:${COLOR.panel}"><tr><td style="padding:20px 24px"><ul style="margin:0;padding-left:20px;color:${COLOR.body};font-size:15px;line-height:28px">${features
+      .map((item) => `<li style="margin:0 0 10px;padding-left:2px">${esc(item)}</li>`)
+      .join("")}</ul></td></tr></table>` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px"><tr><td style="padding:18px 20px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:14px"><p style="margin:0;font-size:15px;line-height:26px;color:#065F46"><strong>Website development packages start from R6,500</strong>, with more comprehensive solutions ranging from <strong>R8,000 to R10,000+</strong>, depending on the required features and functionality.</p></td></tr></table>` +
+    `<p class="rb-text" style="margin:0 0 14px;font-size:16px;line-height:28px;color:${COLOR.body}">We would appreciate the opportunity to discuss your business requirements and explore how Rabbit 365 could contribute to your digital growth.</p>` +
+    `<p class="rb-text" style="margin:0;font-size:16px;line-height:28px;color:${COLOR.body}">Please let us know if you would be open to a brief meeting or call.</p>`;
+
+  return {
+    subject: `Website design for ${businessName}`,
+    html: layout({
+      preheader: `Rabbit 365 website design services for ${businessName}.`,
+      heading: `Good day ${businessName} Team,`,
+      intro,
+      content,
+      footerNote:
+        "Thank you for your time and consideration.<br /><br />Kind regards,<br /><br /><strong style=\"color:#0F172A;font-size:15px\">Sam</strong><br /><span style=\"color:#334155\">Rabbit 365</span><br /><span style=\"color:#64748B\">Web Design &amp; Digital Solutions</span>",
       logoUrl: data.logoUrl,
     }),
   };

@@ -10,8 +10,10 @@ import {
   supportTicketReplyClient,
   supportTicketStatusClient,
 } from "../lib/emails";
-import { fail, ok } from "../lib/http";
+import { clientIp, fail, ok } from "../lib/http";
 import { sendLoggedEmail } from "../lib/notify";
+import { allowRequest } from "../lib/ratelimit";
+import { verifyPassword } from "../lib/reauth";
 import { authDb, db } from "../lib/supabase";
 import {
   listAttachments,
@@ -28,10 +30,11 @@ import {
   clientOrgUpdateSchema,
   clientSiteSchema,
   clientSiteUpdateSchema,
+  reauthSchema,
   ticketAgentReplySchema,
   ticketUpdateSchema,
 } from "../lib/validate";
-import { requireAdmin } from "../middleware/auth";
+import { requireAdmin, requireSuperadmin } from "../middleware/auth";
 
 const support = new Hono<Env>();
 
@@ -644,57 +647,70 @@ support.patch("/orgs/:id", zValidator("json", clientOrgUpdateSchema), async (c) 
   return ok(c, { org: data });
 });
 
-support.delete("/orgs/:id", async (c) => {
-  const client = db(c.env);
-  const auth = authDb(c.env);
-  const me = admin(c);
-  const id = c.req.param("id");
+support.delete(
+  "/orgs/:id",
+  requireSuperadmin,
+  zValidator("json", reauthSchema),
+  async (c) => {
+    const client = db(c.env);
+    const auth = authDb(c.env);
+    const me = admin(c);
+    const id = c.req.param("id");
 
-  const { data: org } = await client
-    .from("client_orgs")
-    .select("id,name")
-    .eq("id", id)
-    .maybeSingle();
-  if (!org) return fail(c, "Client not found", 404);
+    const ip = clientIp(c) ?? "unknown";
+    if (!(await allowRequest(c.env.AUTH_RATE_LIMITER, `reauth:${ip}`))) {
+      return fail(c, "Too many attempts. Please try again shortly.", 429);
+    }
+    if (!(await verifyPassword(c, me.email, c.req.valid("json").password))) {
+      return fail(c, "Password confirmation failed", 403);
+    }
 
-  const { data: members } = await client
-    .from("client_members")
-    .select("user_id")
-    .eq("org_id", id);
-  const userIds = ((members ?? []) as { user_id: string }[])
-    .map((member) => member.user_id)
-    .filter(Boolean);
+    const { data: org } = await client
+      .from("client_orgs")
+      .select("id,name")
+      .eq("id", id)
+      .maybeSingle();
+    if (!org) return fail(c, "Client not found", 404);
 
-  let adminIds = new Set<string>();
-  if (userIds.length) {
-    const { data: admins } = await client
-      .from("admin_users")
-      .select("id")
-      .in("id", userIds);
-    adminIds = new Set(((admins ?? []) as { id: string }[]).map((row) => row.id));
-  }
+    const { data: members } = await client
+      .from("client_members")
+      .select("user_id")
+      .eq("org_id", id);
+    const userIds = ((members ?? []) as { user_id: string }[])
+      .map((member) => member.user_id)
+      .filter(Boolean);
 
-  await removeOrgAttachments(client, id).catch(() => undefined);
+    let adminIds = new Set<string>();
+    if (userIds.length) {
+      const { data: admins } = await client
+        .from("admin_users")
+        .select("id")
+        .in("id", userIds);
+      adminIds = new Set(((admins ?? []) as { id: string }[]).map((row) => row.id));
+    }
 
-  let deletedUsers = 0;
-  for (const userId of userIds) {
-    if (adminIds.has(userId)) continue;
-    const { error } = await auth.auth.admin.deleteUser(userId);
-    if (!error) deletedUsers += 1;
-  }
+    await removeOrgAttachments(client, id).catch(() => undefined);
 
-  const { error } = await client.from("client_orgs").delete().eq("id", id);
-  if (error) return fail(c, error.message, 500);
+    let deletedUsers = 0;
+    for (const userId of userIds) {
+      if (adminIds.has(userId)) continue;
+      const { error } = await auth.auth.admin.deleteUser(userId);
+      if (!error) deletedUsers += 1;
+    }
 
-  await logActivity(c, me, {
-    action: "support.client_deleted",
-    entity: "client_org",
-    entityId: id,
-    metadata: { name: org.name, deletedUsers },
-  });
+    const { error } = await client.from("client_orgs").delete().eq("id", id);
+    if (error) return fail(c, error.message, 500);
 
-  return ok(c, { id, name: org.name, deletedUsers });
-});
+    await logActivity(c, me, {
+      action: "support.client_deleted",
+      entity: "client_org",
+      entityId: id,
+      metadata: { name: org.name, deletedUsers },
+    });
+
+    return ok(c, { id, name: org.name, deletedUsers });
+  },
+);
 
 support.post("/orgs/:id/sites", zValidator("json", clientSiteSchema), async (c) => {
   const body = c.req.valid("json");

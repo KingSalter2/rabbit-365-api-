@@ -6,6 +6,7 @@ import { hashIp } from "../lib/crypto";
 import { brandLogoUrl, leadConfirmationEmail, leadNotificationEmail } from "../lib/emails";
 import { clientIp, fail, ok } from "../lib/http";
 import { sendLoggedEmail } from "../lib/notify";
+import { allowRequest } from "../lib/ratelimit";
 import { db } from "../lib/supabase";
 import { verifyTurnstile } from "../lib/turnstile";
 import { leadCreateSchema, leadUpdateSchema } from "../lib/validate";
@@ -16,9 +17,18 @@ const leads = new Hono<Env>();
 // Public: create a lead from any website form.
 leads.post("/", zValidator("json", leadCreateSchema), async (c) => {
   const body = c.req.valid("json");
-  const ip = clientIp(c);
+  const ip = clientIp(c) ?? "unknown";
 
-  const turnstile = await verifyTurnstile(c.env.TURNSTILE_SECRET_KEY, body.turnstileToken, ip);
+  if (!(await allowRequest(c.env.CONTACT_RATE_LIMITER, `lead:${ip}`))) {
+    return fail(c, "Too many submissions. Please try again shortly.", 429);
+  }
+
+  const turnstile = await verifyTurnstile(
+    c.env.TURNSTILE_SECRET_KEY,
+    body.turnstileToken,
+    ip,
+    c.env.ENVIRONMENT === "production",
+  );
   if (!turnstile.success) {
     return fail(c, "Human verification failed. Please refresh and try again.", 400);
   }

@@ -11,6 +11,7 @@ import {
 } from "../lib/emails";
 import { clientIp, fail, ok } from "../lib/http";
 import { sendLoggedEmail } from "../lib/notify";
+import { allowRequest } from "../lib/ratelimit";
 import { defaultProgressRows, PROJECT_STATUS_LABELS } from "../lib/progress";
 import { generateQuoteNumber } from "../lib/quoteNumber";
 import { getBanking, type BankingDetails } from "../lib/settings";
@@ -354,8 +355,17 @@ quotations.post("/:id/accept", zValidator("json", quotationAcceptSchema), async 
   if (!UUID_RE.test(id)) return fail(c, "Quotation not found", 404);
 
   const body = c.req.valid("json");
-  const ip = clientIp(c);
-  const turnstile = await verifyTurnstile(c.env.TURNSTILE_SECRET_KEY, body.turnstileToken, ip);
+  const ip = clientIp(c) ?? "unknown";
+  if (!(await allowRequest(c.env.CONTACT_RATE_LIMITER, `quote-accept:${ip}`))) {
+    return fail(c, "Too many attempts. Please try again shortly.", 429);
+  }
+
+  const turnstile = await verifyTurnstile(
+    c.env.TURNSTILE_SECRET_KEY,
+    body.turnstileToken,
+    ip,
+    c.env.ENVIRONMENT === "production",
+  );
   if (!turnstile.success) return fail(c, "Human verification failed", 400);
 
   const client = db(c.env);

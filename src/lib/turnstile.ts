@@ -8,14 +8,20 @@ export type TurnstileResult = {
 
 /**
  * Server-side Turnstile verification.
- * If no secret is configured (local dev), verification is skipped.
+ * Without a secret, validation is skipped in local/dev but fails closed in
+ * production so missing configuration cannot silently remove protection.
  */
 export async function verifyTurnstile(
   secret: string | undefined,
   token: string | undefined,
   ip?: string,
+  required = false,
 ): Promise<TurnstileResult> {
-  if (!secret) return { success: true, skipped: true };
+  if (!secret) {
+    return required
+      ? { success: false, errorCodes: ["missing-secret"] }
+      : { success: true, skipped: true };
+  }
   if (!token) return { success: false, errorCodes: ["missing-input-response"] };
 
   const body = new FormData();

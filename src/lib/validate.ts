@@ -43,6 +43,18 @@ export const loginSchema = z.object({
   turnstileToken: z.string().optional(),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email().max(320),
+  portal: z.enum(["admin", "client"]).optional(),
+  turnstileToken: z.string().optional(),
+});
+
+export const resetPasswordSchema = z.object({
+  accessToken: z.string().trim().min(1).max(8192),
+  refreshToken: z.string().trim().max(8192).optional(),
+  password: z.string().min(8).max(200),
+});
+
 export const registerSchema = z.object({
   inviteCode: z.string().trim().min(1).max(100),
   email: z.string().trim().email().max(320),
@@ -123,6 +135,28 @@ export const bankingSchema = z.object({
   accountNumber: optionalTrimmed(40),
   accountType: optionalTrimmed(40),
   branchCode: optionalTrimmed(40),
+});
+
+export const bankingUpdateSchema = bankingSchema.extend({
+  password: z.string().min(1).max(200),
+});
+
+export const reauthSchema = z.object({
+  password: z.string().min(1).max(200),
+});
+
+export const mfaEnrollSchema = z.object({
+  friendlyName: z.string().trim().max(80).optional(),
+});
+
+export const mfaChallengeSchema = z.object({
+  factorId: z.string().uuid(),
+});
+
+export const mfaVerifySchema = z.object({
+  factorId: z.string().uuid(),
+  challengeId: z.string().uuid(),
+  code: z.string().trim().min(6).max(10),
 });
 
 /* ------------------------------------------------------------------ */
@@ -208,4 +242,14 @@ export const ticketUpdateSchema = z.object({
 
 export const clientAssetRequestSchema = z.object({
   purpose: z.string().trim().max(40).optional(),
+});
+
+export const outreachSendSchema = z.object({
+  to: z.string().trim().email().max(320),
+  subject: z.string().trim().min(1).max(300),
+  html: z.string().trim().max(200000).optional(),
+  text: z.string().trim().max(200000).optional(),
+  businessName: z.string().trim().max(200).optional(),
+  observation: z.string().trim().max(2000).optional(),
+  messageHtml: z.string().trim().max(200000).optional(),
 });

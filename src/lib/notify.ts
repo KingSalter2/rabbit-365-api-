@@ -9,6 +9,8 @@ export type LoggedEmail = {
   text?: string;
   replyTo?: string;
   template?: string;
+  storeBody?: boolean;
+  attachments?: { content?: string; filename?: string; path?: string; content_id?: string; content_type?: string }[];
 };
 
 const DEFAULT_FROM = "Rabbit 365 <no-reply@emails.rabbit365.co.za>";
@@ -23,13 +25,14 @@ export async function sendLoggedEmail(env: Bindings, input: LoggedEmail): Promis
       html: input.html,
       text: input.text,
       replyTo: input.replyTo,
+      attachments: input.attachments,
     });
 
     await client.from("email_outbox").insert({
       to_email: input.to,
       reply_to: input.replyTo ?? null,
       subject: input.subject,
-      body: input.html ?? input.text ?? null,
+      body: input.storeBody === false ? null : (input.html ?? input.text ?? null),
       template: input.template ?? null,
       status: result ? "sent" : "queued",
       provider_id: result?.id ?? null,
@@ -45,7 +48,8 @@ export async function sendLoggedEmail(env: Bindings, input: LoggedEmail): Promis
         error: error instanceof Error ? error.message : String(error),
       });
     } catch {
-      // swallow — outbox logging is best effort
+      // swallow - outbox logging is best effort
     }
+    throw error;
   }
 }

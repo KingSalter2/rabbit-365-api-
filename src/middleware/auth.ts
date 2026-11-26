@@ -26,6 +26,12 @@ export const requireSuperadmin = createMiddleware<Env>(async (c, next) => {
   const admin = await getAdminUser(c);
   if (!admin) return fail(c, "Unauthorized", 401);
   if (admin.role !== "superadmin") return fail(c, "Forbidden", 403);
+
+  const user = c.get("user") ?? (await getSessionUser(c));
+  if (!user || user.aal !== "aal2") {
+    return fail(c, "Multi-factor authentication required", 403, { code: "mfa_required" });
+  }
+
   c.set("admin", admin);
   await next();
 });

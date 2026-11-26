@@ -2,8 +2,10 @@ import {
   brandLogoUrl,
   clientInviteEmail,
   clientRegisteredTeamEmail,
+  funeralOutreachEmail,
   leadConfirmationEmail,
   leadNotificationEmail,
+  passwordResetEmail,
   quotationAcceptanceClientEmail,
   quotationAcceptedTeamEmail,
   quotationProgressEmail,
@@ -25,6 +27,7 @@ export type SampleEmailKey =
   | "quotation-client"
   | "quotation-progress"
   | "client-invite"
+  | "password-reset"
   | "client-registered-team"
   | "support-ticket-client"
   | "support-ticket-team"
@@ -32,7 +35,8 @@ export type SampleEmailKey =
   | "support-reply-team"
   | "support-status"
   | "support-reminder"
-  | "support-auto-closed";
+  | "support-auto-closed"
+  | "funeral-outreach";
 
 export type SampleEmailMeta = {
   key: SampleEmailKey;
@@ -72,9 +76,19 @@ export const SAMPLE_EMAILS: SampleEmailMeta[] = [
     description: "Sent to a client when the team invites them to the support portal.",
   },
   {
+    key: "password-reset",
+    label: "Password reset (admin)",
+    description: "Sent when an admin requests a password reset link.",
+  },
+  {
     key: "client-registered-team",
     label: "Client registered (team)",
     description: "Sent to the team when a client completes portal registration.",
+  },
+  {
+    key: "funeral-outreach",
+    label: "Funeral outreach (manual send)",
+    description: "Editable outreach template for funeral parlour website services.",
   },
   {
     key: "support-ticket-client",
@@ -207,6 +221,13 @@ export function renderSampleEmail(
         invitedByName: "Rabbit 365",
         logoUrl,
       });
+    case "password-reset":
+      return passwordResetEmail({
+        resetUrl: `${base}/reset-password?portal=admin#access_token=sample&refresh_token=sample&type=recovery`,
+        portal: "admin",
+        email: "info@rabbit365.co.za",
+        logoUrl,
+      });
     case "client-registered-team":
       return clientRegisteredTeamEmail({
         orgName: "Bright Idea Co.",
@@ -214,6 +235,13 @@ export function renderSampleEmail(
         email: "naledi@brightideaco.co.za",
         registeredAt: new Date().toISOString(),
         portalUrl,
+        logoUrl,
+      });
+    case "funeral-outreach":
+      return funeralOutreachEmail({
+        businessName: "Makaula's Elegant Funerals",
+        observation:
+          "your longstanding presence in the funeral services industry and your contribution to the community",
         logoUrl,
       });
     case "support-ticket-client":
@@ -231,7 +259,7 @@ export function renderSampleEmail(
         ...supportSample(base, logoUrl),
         authorName: "Naledi Molefe",
         message:
-          "Thanks for the update — I just tested it and the form is sending again. One more thing: can we also add a honeypot field to reduce spam?",
+          "Thanks for the update  -  I just tested it and the form is sending again. One more thing: can we also add a honeypot field to reduce spam?",
       });
     case "support-status":
       return supportTicketStatusClient({

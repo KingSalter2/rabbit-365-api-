@@ -6,11 +6,26 @@ import { authDb, db } from "./supabase";
 
 const ACCESS_COOKIE = "rb365_access";
 const REFRESH_COOKIE = "rb365_refresh";
+const MFA_ACCESS_COOKIE = "rb365_mfa_access";
 const ACCESS_MAX_AGE = 60 * 60; // 1 hour
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+const MFA_ACCESS_MAX_AGE = 60 * 5; // 5 minutes
 
 function isSecure(c: Context<Env>): boolean {
   return new URL(c.req.url).protocol === "https:";
+}
+
+function readAal(token: string): "aal1" | "aal2" {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return "aal1";
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const json = JSON.parse(atob(padded)) as { aal?: unknown };
+    return json.aal === "aal2" ? "aal2" : "aal1";
+  } catch {
+    return "aal1";
+  }
 }
 
 export function setSessionCookies(
@@ -37,6 +52,49 @@ export function setSessionCookies(
 export function clearSessionCookies(c: Context<Env>) {
   deleteCookie(c, ACCESS_COOKIE, { path: "/" });
   deleteCookie(c, REFRESH_COOKIE, { path: "/" });
+  deleteCookie(c, MFA_ACCESS_COOKIE, { path: "/" });
+}
+
+/** Store a short-lived, non-session token while an MFA challenge is pending. */
+export function setPendingMfaCookie(c: Context<Env>, accessToken: string) {
+  setCookie(c, MFA_ACCESS_COOKIE, accessToken, {
+    httpOnly: true,
+    secure: isSecure(c),
+    sameSite: "Lax",
+    path: "/",
+    maxAge: MFA_ACCESS_MAX_AGE,
+  });
+}
+
+export function getPendingMfaToken(c: Context<Env>): string | null {
+  return getCookie(c, MFA_ACCESS_COOKIE) ?? null;
+}
+
+export function clearPendingMfaCookie(c: Context<Env>) {
+  deleteCookie(c, MFA_ACCESS_COOKIE, { path: "/" });
+}
+
+/** Revoke the current session server-side before clearing cookies. */
+export async function revokeCurrentSession(c: Context<Env>): Promise<void> {
+  const client = authDb(c.env);
+  let access = getCookie(c, ACCESS_COOKIE);
+
+  if (!access) {
+    const refresh = getCookie(c, REFRESH_COOKIE);
+    if (refresh) {
+      const { data } = await client.auth.refreshSession({ refresh_token: refresh });
+      access = data.session?.access_token;
+    }
+  }
+
+  if (access) {
+    try {
+      await client.auth.admin.signOut(access, "local");
+    } catch {
+      // Best effort: cookies are still cleared below.
+    }
+  }
+  clearSessionCookies(c);
 }
 
 /** Resolve the current user from the session cookies (auto-refreshing). */
@@ -46,7 +104,14 @@ export async function getSessionUser(c: Context<Env>): Promise<SessionUser | nul
   const access = getCookie(c, ACCESS_COOKIE);
   if (access) {
     const { data } = await client.auth.getUser(access);
-    if (data.user) return { id: data.user.id, email: data.user.email ?? null };
+    if (data.user) {
+      return {
+        id: data.user.id,
+        email: data.user.email ?? null,
+        accessToken: access,
+        aal: readAal(access),
+      };
+    }
   }
 
   const refresh = getCookie(c, REFRESH_COOKIE);
@@ -57,7 +122,12 @@ export async function getSessionUser(c: Context<Env>): Promise<SessionUser | nul
         access_token: data.session.access_token,
         refresh_token: data.session.refresh_token,
       });
-      return { id: data.session.user.id, email: data.session.user.email ?? null };
+      return {
+        id: data.session.user.id,
+        email: data.session.user.email ?? null,
+        accessToken: data.session.access_token,
+        aal: readAal(data.session.access_token),
+      };
     }
     clearSessionCookies(c);
   }

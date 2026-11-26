@@ -3,6 +3,8 @@ export type AdminRole = "superadmin" | "admin";
 export type SessionUser = {
   id: string;
   email: string | null;
+  accessToken: string | null;
+  aal: "aal1" | "aal2";
 };
 
 export type AdminUser = {

@@ -11,6 +11,7 @@ import {
   supportTicketReplyTeam,
 } from "../lib/emails";
 import { clientIp, fail, ok } from "../lib/http";
+import { allowRequest } from "../lib/ratelimit";
 import { sendLoggedEmail } from "../lib/notify";
 import { setSessionCookies } from "../lib/session";
 import { authDb, db } from "../lib/supabase";
@@ -79,10 +80,16 @@ clientRoutes.get("/invite/:code", async (c) => {
 
 clientRoutes.post("/register", zValidator("json", clientRegisterSchema), async (c) => {
   const body = c.req.valid("json");
+  const ip = clientIp(c) ?? "unknown";
+  if (!(await allowRequest(c.env.AUTH_RATE_LIMITER, `client-register:${ip}`))) {
+    return fail(c, "Too many registration attempts. Please try again shortly.", 429);
+  }
+
   const turnstile = await verifyTurnstile(
     c.env.TURNSTILE_SECRET_KEY,
     body.turnstileToken,
-    clientIp(c),
+    ip,
+    c.env.ENVIRONMENT === "production",
   );
   if (!turnstile.success) return fail(c, "Human verification failed", 400);
 
